@@ -1,0 +1,63 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isString(value) {
+      return value is string && value.size() > 0 && value.size() < 160;
+    }
+
+    function isDeviceId(value) {
+      return value is string && value.matches('device_[A-Za-z0-9]{32}');
+    }
+
+    function isStatus(value) {
+      return value in ['active', 'deleted', 'blocked', 'sent', 'accepted', 'ignored'];
+    }
+
+    match /devices/{deviceId} {
+      allow read: if false;
+      allow create, update: if isDeviceId(deviceId) && request.resource.data.deviceId == deviceId;
+    }
+
+    match /codes/{codeId} {
+      allow read: if codeId.matches('[0-9]{6}');
+      allow create, update: if codeId.matches('[0-9]{6}')
+        && request.resource.data.code == codeId
+        && isDeviceId(request.resource.data.receiverId)
+        && request.resource.data.consumed is bool;
+    }
+
+    match /pairs/{pairId} {
+      allow read: if true;
+      allow create, update: if isDeviceId(request.resource.data.senderId)
+        && isDeviceId(request.resource.data.receiverId)
+        && isStatus(request.resource.data.status);
+    }
+
+    match /blocks/{blockId} {
+      allow read: if true;
+      allow create, update: if isDeviceId(request.resource.data.blockerId)
+        && isDeviceId(request.resource.data.blockedId)
+        && isString(request.resource.data.pairId);
+      allow delete: if true;
+    }
+
+    match /ringReceipts/{receiptId} {
+      allow read: if true;
+      allow create: if isString(request.resource.data.pairId)
+        && isDeviceId(request.resource.data.senderId)
+        && isDeviceId(request.resource.data.receiverId)
+        && request.resource.data.status == 'sent'
+        && request.resource.data.superRing is bool;
+      allow update: if isStatus(request.resource.data.status);
+    }
+
+    match /rateLimits/{rateLimitId} {
+      allow read, write: if false;
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
