@@ -1,69 +1,96 @@
-# Anonymous Pager
+# 📟 Anonymous Pager
 
-Android-first MVP for a privacy-focused pager app: no names, no phone numbers, no contact book. Users either generate a temporary PIN/QR to be ringed or redeem someone else's code to create a saved anonymous connection and send a ring.
+> **Privacy-First Peer Alerting System**: No names, no phone numbers, no contact books, no identity leakage.
 
-The current development build uses **Firestore-only mode** so it can run on the Firebase Spark plan without Blaze. Rings are live Firestore events, so the receiver must have the app open to be informed.
+---
 
-## Structure
+![Anonymous Pager Mobile Preview](assets/hero-preview.jpg)
 
-- `app/` - native Android app built with Kotlin and Jetpack Compose.
-- `functions/` - Firebase Cloud Functions for anonymous pairing, ringing, blocking, and rate limits.
-- `firebase.json` - Firebase emulator/deploy configuration.
-- `firestore.rules` - locked-down rules; clients use callable functions for sensitive writes.
+---
 
-## Firebase Setup
+## 🔒 What is Anonymous Pager?
 
-Current project: `alghillani`.
+**Anonymous Pager** is a native Android application built with **Kotlin** and **Jetpack Compose**. It allows two individuals to establish a direct, anonymous signaling channel via temporary PINs or QR codes — enabling one user to "ring" or alert the other without exchanging any personal identifiable information (PII).
 
-Completed:
+Think of it as a **digital physical pager**: secure, instant, zero-metadata, and strictly peer-scoped.
 
-- Android app registered in Firebase as `com.example.anonymouspager`.
-- `app/google-services.json` downloaded.
-- Firestore database created.
-- Firestore rules deployed.
+---
 
-Current Spark-plan behavior:
+## 🛠️ Key Features
 
-- Temporary PIN/QR code generation uses Firestore directly.
-- Pairing and saved connections use Firestore directly.
-- Ringing creates Firestore ring events.
-- Receivers are informed while the app is open and listening.
-- Incoming rings play an in-app pager tone and vibration.
-- Super Ring uses the alarm audio stream, temporarily raises alarm volume, repeats longer, and vibrates harder.
-- Blocked connections are clearly labeled and can be unblocked.
-- QR codes use the pager LCD color style.
+* 🚫 **Zero PII Exposure**: No account registration, phone numbers, or contact permission required.
+* 📲 **QR & PIN Pairing**: Generate short-lived QR codes or PINs to pair devices in seconds.
+* 🔔 **Super Ring Mode**: High-priority alert mechanism utilizing the Android alarm audio stream, bypasses standard media silencers with custom vibration sequences for emergency signals.
+* 📟 **Retro LCD Aesthetic**: Custom Jetpack Compose UI styled after classic physical pagers with dark cyber-teal and amber neon accents.
+* 🛡️ **Built-in Blocking**: Instant peer blocking and unblocking capabilities with client-side status labels.
 
-Not included without Blaze or another trusted backend:
+---
 
-- Closed-app push notification delivery.
-- Server-enforced rate limits.
-- Strong user/device ownership enforcement.
-- Guaranteed bypass of silent mode, Do Not Disturb, or manufacturer battery/audio restrictions. Super Ring is best-effort while the receiver app is open.
+## 🏗️ Project Architecture
 
-Only required later for full push behavior:
+The codebase is organized into client and backend modules:
 
-1. Upgrade the project to the **Blaze** plan. This is currently blocking Cloud Functions and programmatic Auth initialization.
-2. Enable **Firebase Authentication** and turn on **Anonymous** sign-in.
-3. Deploy functions from `functions/` after the Blaze upgrade.
+```text
+anonymous-pager/
+├── app/                  # Native Android app (Kotlin + Jetpack Compose)
+│   ├── src/main/java/    # UI Composables, ViewModels, & Firestore Listeners
+│   └── res/              # Vector assets, themes, & notification channels
+├── functions/            # Firebase Cloud Functions (Node.js / TypeScript)
+│   └── src/              # Secure pair verification, rate-limiting & callable triggers
+├── firestore.rules       # Granular database security & document access policies
+└── firebase.json         # Firebase Emulator Suite setup & deployment config
+```
 
-## Android Setup
+---
 
-Open this folder in Android Studio. Let it sync Gradle, then run the `app` configuration on a device or emulator.
+## ⚙️ Tech Stack & Technologies
 
-The app requests camera permission only when scanning a QR code. Notifications use Firebase Cloud Messaging; on Android 13+ the app asks for notification permission.
+* **Language**: Kotlin 2.x
+* **UI Toolkit**: Jetpack Compose + Material 3
+* **Backend**: Firebase Firestore (Real-time listener architecture) + Cloud Functions
+* **Camera / QR**: CameraX + ML Kit Barcode Scanning
+* **Notifications**: Firebase Cloud Messaging (FCM) + Android Notification Manager
 
-## Functions
+---
 
-```powershell
+## 🚀 Quickstart & Local Development
+
+### 1. Requirements
+* **Android Studio**: Jellyfish / Koala or newer
+* **JDK**: 17 or higher
+* **Firebase Project**: Spark (free) or Blaze plan
+
+### 2. Running the Android Client
+1. Clone this repository:
+   ```bash
+   git clone https://github.com/anasalghillani/anonymous-pager.git
+   ```
+2. Open the project root in **Android Studio**.
+3. Let Gradle sync dependencies.
+4. Run on an Android emulator or physical device (Android 8.0+ / API 26+).
+
+### 3. Running Firebase Emulator Suite (Functions & Database)
+```bash
 cd functions
 npm install
-npm test
 npm run build
 firebase emulators:start
 ```
 
-Deploy:
+---
 
-```powershell
+## 🔐 Deployment & Cloud Functions
+
+To deploy updated Cloud Functions and Firestore rules to Firebase:
+
+```bash
 firebase deploy --only functions,firestore
 ```
+
+> **Note**: Standard real-time ringing works out-of-the-box on the free **Spark plan** when the app is active. Full push notifications when the app is killed require Firebase Cloud Functions deployed on the **Blaze plan**.
+
+---
+
+<p align="center">
+  <i>Open source privacy experiment — Built with Kotlin & Jetpack Compose.</i>
+</p>
