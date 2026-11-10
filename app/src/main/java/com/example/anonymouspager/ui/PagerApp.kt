@@ -2,6 +2,7 @@ package com.example.anonymouspager.ui
 
 import android.Manifest
 import android.content.pm.PackageManager
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
@@ -25,6 +26,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -38,8 +40,10 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -56,8 +60,12 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.repeatOnLifecycle
 import com.example.anonymouspager.data.PagerPair
 import com.example.anonymouspager.data.PagerRing
+import kotlinx.coroutines.delay
 
 private val PagerBlack = Color(0xFF12110E)
 private val PagerBody = Color(0xFF1F1D18)
@@ -70,9 +78,22 @@ private val LcdDark = Color(0xFF172015)
 private val LcdMuted = Color(0xFF40523A)
 private val Mono = FontFamily.Monospace
 
+/** A destructive action waiting for the user to confirm it in a dialog. */
+private data class PendingConfirm(val pairId: String, val tag: String, val block: Boolean)
+
 @Composable
 fun PagerApp(viewModel: PagerViewModel) {
     val state by viewModel.uiState.collectAsState()
+    var pendingConfirm by remember { mutableStateOf<PendingConfirm?>(null) }
+
+    // Phone Back button moves back one screen instead of closing the app.
+    BackHandler(enabled = state.screen != PagerScreen.Home) { viewModel.goBack() }
+
+    val tagFor = { pairId: String ->
+        (state.pairs + state.incomingPairs).firstOrNull { it.id == pairId }?.tag.orEmpty()
+    }
+    val confirmDelete = { pairId: String -> pendingConfirm = PendingConfirm(pairId, tagFor(pairId), block = false) }
+    val confirmBlock = { pairId: String -> pendingConfirm = PendingConfirm(pairId, tagFor(pairId), block = true) }
     MaterialTheme(
         colorScheme = MaterialTheme.colorScheme.copy(
             primary = PagerGold,
@@ -100,8 +121,9 @@ fun PagerApp(viewModel: PagerViewModel) {
                             state = state,
                             onBack = viewModel::goHome,
                             onRefresh = viewModel::createCode,
-                            onDelete = viewModel::deletePair,
-                            onBlock = viewModel::blockPair,
+                            onCodeExpired = viewModel::onCodeExpired,
+                            onDelete = confirmDelete,
+                            onBlock = confirmBlock,
                             onUnblock = viewModel::unblockPair,
                             onRespond = viewModel::respondToRing
                         )
@@ -114,8 +136,8 @@ fun PagerApp(viewModel: PagerViewModel) {
                             onScan = viewModel::openScanner,
                             onRing = viewModel::ring,
                             onSuperRing = viewModel::superRing,
-                            onDelete = viewModel::deletePair,
-                            onBlock = viewModel::blockPair,
+                            onDelete = confirmDelete,
+                            onBlock = confirmBlock,
                             onUnblock = viewModel::unblockPair
                         )
 
@@ -134,6 +156,17 @@ fun PagerApp(viewModel: PagerViewModel) {
                         ) {
                             CircularProgressIndicator(color = PagerGold)
                         }
+                    }
+
+                    pendingConfirm?.let { pending ->
+                        ConfirmDialog(
+                            pending = pending,
+                            onConfirm = {
+                                pendingConfirm = null
+                                if (pending.block) viewModel.blockPair(pending.pairId) else viewModel.deletePair(pending.pairId)
+                            },
+                            onDismiss = { pendingConfirm = null }
+                        )
                     }
                 }
             }
@@ -272,6 +305,7 @@ private fun BeRingedScreen(
     state: PagerUiState,
     onBack: () -> Unit,
     onRefresh: () -> Unit,
+    onCodeExpired: () -> Unit,
     onDelete: (String) -> Unit,
     onBlock: (String) -> Unit,
     onUnblock: (String) -> Unit,
@@ -285,11 +319,21 @@ private fun BeRingedScreen(
             Spacer(Modifier.height(10.dp))
         }
         val code = state.code
-        if (code != null) {
+        val connectedTag = state.justConnectedTag
+        if (connectedTag != null) {
+            LcdCard {
+                LcdTitle("CONNECTED!", textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
+                LcdText(
+                    "SENDER $connectedTag CAN\nNOW RING YOU",
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        } else if (code != null) {
             PagerQrCode(payload = code.qrPayload, modifier = Modifier.align(Alignment.CenterHorizontally))
             Spacer(Modifier.height(10.dp))
             LcdTitle(code.code, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
-            LcdText("EXPIRES IN 10 MIN", textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
+            CodeCountdown(expiresAtMillis = code.expiresAtMillis, onExpired = onCodeExpired)
         }
         Spacer(Modifier.height(12.dp))
         PagerSecondaryButton("NEW CODE", onClick = onRefresh)
@@ -457,6 +501,77 @@ private fun IncomingRingPanel(rings: List<PagerRing>, onRespond: (String, String
             PagerDangerButton("IGNORE", onClick = { onRespond(latest.id, "ignored") }, modifier = Modifier.weight(1f))
         }
     }
+}
+
+/**
+ * Live "EXPIRES IN m:ss" line; calls [onExpired] when it reaches zero. Only ticks while the
+ * app is visible, so a phone left on this screen in the background doesn't keep making codes.
+ */
+@Composable
+private fun CodeCountdown(expiresAtMillis: Long, onExpired: () -> Unit) {
+    var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    val lifecycleOwner = LocalLifecycleOwner.current
+    LaunchedEffect(expiresAtMillis, lifecycleOwner) {
+        lifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
+            while (true) {
+                now = System.currentTimeMillis()
+                if (now >= expiresAtMillis) {
+                    onExpired()
+                    break
+                }
+                delay(1_000L - now % 1_000L)
+            }
+        }
+    }
+    val secondsLeft = ((expiresAtMillis - now + 999L) / 1_000L).coerceAtLeast(0L)
+    LcdText(
+        if (secondsLeft > 0) "EXPIRES IN %d:%02d".format(secondsLeft / 60, secondsLeft % 60) else "CODE EXPIRED",
+        textAlign = TextAlign.Center,
+        modifier = Modifier.fillMaxWidth()
+    )
+}
+
+@Composable
+private fun ConfirmDialog(pending: PendingConfirm, onConfirm: () -> Unit, onDismiss: () -> Unit) {
+    val who = pending.tag.ifBlank { "THIS CONNECTION" }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = LcdGreen,
+        titleContentColor = LcdDark,
+        textContentColor = LcdDark,
+        title = {
+            Text(
+                if (pending.block) "BLOCK $who?" else "DELETE $who?",
+                fontFamily = Mono,
+                fontWeight = FontWeight.Bold
+            )
+        },
+        text = {
+            Text(
+                if (pending.block) {
+                    "Rings on this connection stop. You can unblock it later."
+                } else {
+                    "This removes the connection. You'll need a new code to pair again."
+                },
+                fontFamily = Mono
+            )
+        },
+        confirmButton = {
+            TextButton(onClick = onConfirm) {
+                Text(
+                    if (pending.block) "BLOCK" else "DELETE",
+                    color = PagerRed,
+                    fontFamily = Mono,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("CANCEL", color = LcdDark, fontFamily = Mono, fontWeight = FontWeight.Bold)
+            }
+        }
+    )
 }
 
 @Composable
