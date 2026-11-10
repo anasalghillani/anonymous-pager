@@ -11,9 +11,12 @@ data class PagerPair(
     val senderId: String,
     val receiverId: String,
     val createdAtMillis: Long,
-    val blocked: Boolean = false
+    val blocked: Boolean = false,
+    val blockedByMe: Boolean = false
 ) {
-    fun displayName(index: Int): String = "Connection ${index + 1}"
+    /** Short tag derived from the pair id, so it never changes when other connections are removed. */
+    val tag: String
+        get() = Integer.toHexString(id.hashCode() and 0xFFFF).uppercase().padStart(4, '0')
 }
 
 data class PagerRing(

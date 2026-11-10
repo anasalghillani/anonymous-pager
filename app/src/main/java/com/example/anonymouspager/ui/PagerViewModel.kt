@@ -219,8 +219,15 @@ class PagerViewModel(
                     val freshRings = rings.filterNot { it.id in seenRingIds }
                     seenRingIds.addAll(rings.map { it.id })
                     if (firstRingSnapshot) {
+                        // Rings that arrived while the app was closed: show them, but don't replay the sound.
                         firstRingSnapshot = false
-                        _uiState.update { it.copy(loading = false, incomingRings = emptyList()) }
+                        _uiState.update {
+                            it.copy(
+                                loading = false,
+                                incomingRings = rings,
+                                status = if (rings.isNotEmpty()) "${rings.size} missed ring(s)" else it.status
+                            )
+                        }
                         return@collect
                     }
                     if (freshRings.isNotEmpty()) {
@@ -244,9 +251,10 @@ class PagerViewModel(
         val message = error.message.orEmpty()
         return when {
             message.contains("CONFIGURATION_NOT_FOUND", ignoreCase = true) ->
-                "Firestore-only mode needs no Auth. Check Firestore rules and config."
-            message.contains("NOT_FOUND", ignoreCase = true) && message.contains("function", ignoreCase = true) ->
-                "Firestore-only mode does not use Cloud Functions."
+                "Anonymous sign-in is not enabled in Firebase Auth."
+            message.contains("UNAVAILABLE", ignoreCase = true) ||
+                message.contains("network", ignoreCase = true) ->
+                "No connection. Check your internet and try again."
             message.isNotBlank() -> message
             else -> fallback
         }

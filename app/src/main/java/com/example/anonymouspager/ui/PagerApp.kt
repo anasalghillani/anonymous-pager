@@ -13,13 +13,16 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
@@ -144,12 +147,13 @@ private fun PagerDeviceFrame(content: @Composable () -> Unit) {
         modifier = Modifier
             .fillMaxSize()
             .background(PagerBlack)
+            .windowInsetsPadding(WindowInsets.safeDrawing)
             .padding(14.dp),
         contentAlignment = Alignment.Center
     ) {
         Column(
             modifier = Modifier
-                .fillMaxWidth()
+                .fillMaxSize()
                 .clip(RoundedCornerShape(22.dp))
                 .background(
                     Brush.verticalGradient(
@@ -163,7 +167,7 @@ private fun PagerDeviceFrame(content: @Composable () -> Unit) {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(430.dp)
+                    .weight(1f)
                     .clip(RoundedCornerShape(12.dp))
                     .background(LcdGreen)
                     .border(3.dp, Color(0xFF050605), RoundedCornerShape(12.dp))
@@ -190,7 +194,7 @@ private fun PagerControls() {
                 IndicatorButton(PagerRed)
             }
             Text(
-                "ANONYMOUS\nPAGER",
+                "WEN\nوين",
                 color = PagerGold,
                 fontFamily = Mono,
                 fontWeight = FontWeight.Bold,
@@ -251,8 +255,8 @@ private fun RoundNavButton(label: String, wide: Boolean = false) {
 
 @Composable
 private fun HomeScreen(status: String?, onRing: () -> Unit, onBeRinged: () -> Unit) {
-    LcdColumn(verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
-        LcdTitle("ANONYMOUS PAGER")
+    LcdColumn(scrollable = false, verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
+        LcdTitle("WEN · وين")
         Spacer(Modifier.height(10.dp))
         LcdText("NO NAMES / NO NUMBERS\nPRIVATE RING ONLY", textAlign = TextAlign.Center)
         Spacer(Modifier.height(28.dp))
@@ -297,17 +301,17 @@ private fun BeRingedScreen(
         if (activeSenders.isEmpty()) {
             LcdText("NONE")
         } else {
-            LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                itemsIndexed(activeSenders, key = { _, pair -> pair.id }) { index, pair ->
-                    ReceiverPairCard(index = index, pair = pair, onDelete = onDelete, onBlock = onBlock)
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                activeSenders.forEach { pair ->
+                    ReceiverPairCard(pair = pair, onDelete = onDelete, onBlock = onBlock)
                 }
             }
         }
         if (blockedSenders.isNotEmpty()) {
             Spacer(Modifier.height(10.dp))
             LcdText("BLOCKED SENDERS")
-            blockedSenders.forEachIndexed { index, pair ->
-                ReceiverPairCard(index = index, pair = pair, onDelete = onDelete, onBlock = onBlock, onUnblock = onUnblock)
+            blockedSenders.forEach { pair ->
+                ReceiverPairCard(pair = pair, onDelete = onDelete, onBlock = onBlock, onUnblock = onUnblock)
                 Spacer(Modifier.height(8.dp))
             }
         }
@@ -360,17 +364,17 @@ private fun RingScreen(
         if (activePairs.isEmpty()) {
             LcdText("NONE")
         } else {
-            LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                itemsIndexed(activePairs, key = { _, pair -> pair.id }) { index, pair ->
-                    PairCard(index = index, pair = pair, onRing = onRing, onSuperRing = onSuperRing, onDelete = onDelete, onBlock = onBlock, onUnblock = onUnblock)
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                activePairs.forEach { pair ->
+                    PairCard(pair = pair, onRing = onRing, onSuperRing = onSuperRing, onDelete = onDelete, onBlock = onBlock, onUnblock = onUnblock)
                 }
             }
         }
         if (blockedPairs.isNotEmpty()) {
             Spacer(Modifier.height(10.dp))
             LcdText("BLOCKED CONNECTIONS")
-            blockedPairs.forEachIndexed { index, pair ->
-                PairCard(index = index, pair = pair, onRing = onRing, onSuperRing = onSuperRing, onDelete = onDelete, onBlock = onBlock, onUnblock = onUnblock)
+            blockedPairs.forEach { pair ->
+                PairCard(pair = pair, onRing = onRing, onSuperRing = onSuperRing, onDelete = onDelete, onBlock = onBlock, onUnblock = onUnblock)
                 Spacer(Modifier.height(8.dp))
             }
         }
@@ -379,7 +383,6 @@ private fun RingScreen(
 
 @Composable
 private fun PairCard(
-    index: Int,
     pair: PagerPair,
     onRing: (String) -> Unit,
     onSuperRing: (String) -> Unit,
@@ -388,11 +391,11 @@ private fun PairCard(
     onUnblock: (String) -> Unit
 ) {
     LcdCard(blocked = pair.blocked) {
-        LcdText(if (pair.blocked) "${pair.displayName(index).uppercase()} [BLOCKED]" else pair.displayName(index).uppercase())
+        LcdText(if (pair.blocked) "CONN ${pair.tag} [BLOCKED]" else "CONN ${pair.tag}")
         Spacer(Modifier.height(8.dp))
         if (pair.blocked) {
             BlockedPairActions(
-                onUnblock = { onUnblock(pair.id) },
+                onUnblock = if (pair.blockedByMe) ({ onUnblock(pair.id) }) else null,
                 onDelete = { onDelete(pair.id) }
             )
         } else {
@@ -407,18 +410,17 @@ private fun PairCard(
 
 @Composable
 private fun ReceiverPairCard(
-    index: Int,
     pair: PagerPair,
     onDelete: (String) -> Unit,
     onBlock: (String) -> Unit,
     onUnblock: ((String) -> Unit)? = null
 ) {
     LcdCard(blocked = pair.blocked) {
-        LcdText(if (pair.blocked) "SENDER ${index + 1} [BLOCKED]" else "SENDER ${index + 1}")
+        LcdText(if (pair.blocked) "SENDER ${pair.tag} [BLOCKED]" else "SENDER ${pair.tag}")
         Spacer(Modifier.height(8.dp))
         if (pair.blocked && onUnblock != null) {
             BlockedPairActions(
-                onUnblock = { onUnblock(pair.id) },
+                onUnblock = if (pair.blockedByMe) ({ onUnblock(pair.id) }) else null,
                 onDelete = { onDelete(pair.id) }
             )
         } else {
@@ -431,9 +433,11 @@ private fun ReceiverPairCard(
 }
 
 @Composable
-private fun BlockedPairActions(onUnblock: () -> Unit, onDelete: () -> Unit) {
+private fun BlockedPairActions(onUnblock: (() -> Unit)?, onDelete: () -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        PagerActionButton("UNBLOCK", onClick = onUnblock, modifier = Modifier.fillMaxWidth())
+        if (onUnblock != null) {
+            PagerActionButton("UNBLOCK", onClick = onUnblock, modifier = Modifier.fillMaxWidth())
+        }
         PagerSecondaryButton("DELETE", onClick = onDelete, modifier = Modifier.fillMaxWidth())
     }
 }
@@ -487,7 +491,7 @@ private fun ScannerPermissionScreen(onBack: () -> Unit, onScanned: (String) -> U
         cameraStatus = if (granted) null else "Camera permission denied"
     }
 
-    LcdColumn {
+    LcdColumn(scrollable = false) {
         TopBar(title = "SCAN QR", onBack = onBack)
         Spacer(Modifier.height(16.dp))
         if (hasPermission) {
@@ -523,12 +527,14 @@ private fun TopBar(title: String, onBack: () -> Unit) {
 @Composable
 private fun LcdColumn(
     modifier: Modifier = Modifier,
+    scrollable: Boolean = true,
     verticalArrangement: Arrangement.Vertical = Arrangement.Top,
     horizontalAlignment: Alignment.Horizontal = Alignment.Start,
     content: @Composable ColumnScope.() -> Unit
 ) {
+    val scroll = if (scrollable) Modifier.verticalScroll(rememberScrollState()) else Modifier
     Column(
-        modifier = modifier.fillMaxSize(),
+        modifier = modifier.fillMaxSize().then(scroll),
         verticalArrangement = verticalArrangement,
         horizontalAlignment = horizontalAlignment,
         content = content
