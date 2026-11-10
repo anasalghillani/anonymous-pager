@@ -1,6 +1,7 @@
 package com.example.anonymouspager.ui
 
 import android.app.Application
+import androidx.core.app.NotificationManagerCompat
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.anonymouspager.audio.RingPlayer
@@ -10,6 +11,7 @@ import com.example.anonymouspager.data.PagerRing
 import com.example.anonymouspager.data.PagerRepository
 import com.example.anonymouspager.data.PagerResult
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -50,8 +52,16 @@ class PagerViewModel(
     private var outgoingPairs: List<PagerPair> = emptyList()
     private var incomingPairsCache: List<PagerPair> = emptyList()
     private var firstRingSnapshot = true
+    private var statusClearJob: Job? = null
 
     init {
+        // Drop rings that expire while the app is open (the Firestore listener only fires on changes).
+        viewModelScope.launch {
+            while (true) {
+                delay(EXPIRY_CHECK_MS)
+                removeExpiredRings()
+            }
+        }
         viewModelScope.launch {
             runCatching {
                 repository.ensureSignedInAndRegistered()
@@ -66,6 +76,16 @@ class PagerViewModel(
 
     fun goHome() {
         _uiState.update { it.copy(screen = PagerScreen.Home, status = null) }
+    }
+
+    /** Opens "Be Ringed" and only makes a new code when there is none or it has expired. */
+    fun openBeRinged() {
+        val code = _uiState.value.code
+        if (code != null && code.expiresAtMillis > System.currentTimeMillis()) {
+            _uiState.update { it.copy(screen = PagerScreen.BeRinged, status = null) }
+        } else {
+            createCode()
+        }
     }
 
     fun openRing() {
@@ -114,10 +134,10 @@ class PagerViewModel(
 
     private fun sendRing(pairId: String, superRing: Boolean) {
         viewModelScope.launch {
-            _uiState.update { it.copy(status = if (superRing) "Sending super ring..." else "Sending ring...") }
+            showStatus(if (superRing) "Sending super ring..." else "Sending ring...", autoClear = false)
             when (val result = repository.sendRing(pairId, superRing)) {
-                PagerResult.Ok -> _uiState.update { it.copy(status = if (superRing) "Super ring sent" else "Ring sent") }
-                is PagerResult.Error -> _uiState.update { it.copy(status = result.message) }
+                PagerResult.Ok -> showStatus(if (superRing) "Super ring sent" else "Ring sent")
+                is PagerResult.Error -> showStatus(result.message)
             }
         }
     }
@@ -125,8 +145,8 @@ class PagerViewModel(
     fun deletePair(pairId: String) {
         viewModelScope.launch {
             when (val result = repository.deletePair(pairId)) {
-                PagerResult.Ok -> _uiState.update { it.copy(status = "Connection deleted") }
-                is PagerResult.Error -> _uiState.update { it.copy(status = result.message) }
+                PagerResult.Ok -> showStatus("Connection deleted")
+                is PagerResult.Error -> showStatus(result.message)
             }
         }
     }
@@ -134,8 +154,8 @@ class PagerViewModel(
     fun blockPair(pairId: String) {
         viewModelScope.launch {
             when (val result = repository.blockPair(pairId)) {
-                PagerResult.Ok -> _uiState.update { it.copy(status = "Connection blocked") }
-                is PagerResult.Error -> _uiState.update { it.copy(status = result.message) }
+                PagerResult.Ok -> showStatus("Connection blocked")
+                is PagerResult.Error -> showStatus(result.message)
             }
         }
     }
@@ -143,39 +163,82 @@ class PagerViewModel(
     fun unblockPair(pairId: String) {
         viewModelScope.launch {
             when (val result = repository.unblockPair(pairId)) {
-                PagerResult.Ok -> _uiState.update { it.copy(status = "Connection unblocked") }
-                is PagerResult.Error -> _uiState.update { it.copy(status = result.message) }
+                PagerResult.Ok -> showStatus("Connection unblocked")
+                is PagerResult.Error -> showStatus(result.message)
             }
         }
     }
 
-    fun respondToRing(ringId: String, response: String) {
+    /**
+     * Answers every waiting ring from one connection at once.
+     * The server marks all of that person's unanswered rings with the same response.
+     */
+    fun respondToPair(pairId: String, response: String) {
+        val answered = _uiState.value.incomingRings.filter { it.pairId == pairId }
+        val latest = answered.firstOrNull() ?: return
+        ringPlayer.stop()
+        cancelRingNotifications(answered)
+        _uiState.update { state ->
+            state.copy(incomingRings = state.incomingRings.filterNot { it.pairId == pairId })
+        }
         viewModelScope.launch {
-            ringPlayer.stop()
-            when (val result = repository.respondToRing(ringId, response)) {
-                PagerResult.Ok -> _uiState.update { state ->
-                    state.copy(
-                        status = if (response == "accepted") "Ring accepted" else "Ring ignored",
-                        incomingRings = state.incomingRings.filterNot { it.id == ringId }
-                    )
+            when (val result = repository.respondToRing(latest.id, response)) {
+                PagerResult.Ok -> showStatus(if (response == "accepted") "Ring accepted" else "Ring ignored")
+                is PagerResult.Error -> {
+                    // Put the rings back so the user can try again.
+                    _uiState.update { state ->
+                        state.copy(
+                            incomingRings = (state.incomingRings + answered)
+                                .distinctBy { it.id }
+                                .filterNot { it.isExpired(System.currentTimeMillis()) }
+                                .sortedByDescending { it.createdAtMillis }
+                        )
+                    }
+                    showStatus(result.message)
                 }
-                is PagerResult.Error -> _uiState.update { it.copy(status = result.message) }
+            }
+        }
+    }
+
+    private fun removeExpiredRings() {
+        val now = System.currentTimeMillis()
+        val rings = _uiState.value.incomingRings
+        val expired = rings.filter { it.isExpired(now) }
+        if (expired.isEmpty()) return
+        cancelRingNotifications(expired)
+        _uiState.update { state -> state.copy(incomingRings = state.incomingRings.filterNot { it.isExpired(now) }) }
+        if (_uiState.value.incomingRings.isEmpty()) ringPlayer.stop()
+    }
+
+    private fun cancelRingNotifications(rings: List<PagerRing>) {
+        val notifications = NotificationManagerCompat.from(getApplication<Application>())
+        // Same id the push service uses when it shows a ring notification.
+        rings.forEach { notifications.cancel(it.id.hashCode()) }
+    }
+
+    /** Shows a short message; it disappears by itself after a few seconds unless [autoClear] is false. */
+    private fun showStatus(message: String?, autoClear: Boolean = true) {
+        statusClearJob?.cancel()
+        _uiState.update { it.copy(status = message) }
+        if (message != null && autoClear) {
+            statusClearJob = viewModelScope.launch {
+                delay(STATUS_VISIBLE_MS)
+                _uiState.update { if (it.status == message) it.copy(status = null) else it }
             }
         }
     }
 
     private fun redeemCode(input: String) {
         if (input.isBlank()) {
-            _uiState.update { it.copy(status = "Enter a PIN or scan a QR code") }
+            showStatus("Enter a PIN or scan a QR code")
             return
         }
         viewModelScope.launch {
             _uiState.update { it.copy(loading = true, status = null) }
             runCatching { repository.redeemCode(input) }
                 .onSuccess {
-                    _uiState.update {
-                        it.copy(loading = false, codeInput = "", status = "Connection saved")
-                    }
+                    _uiState.update { it.copy(loading = false, codeInput = "") }
+                    showStatus("Connection saved")
                 }
                 .onFailure { error ->
                     _uiState.update {
@@ -223,30 +286,18 @@ class PagerViewModel(
                 .collect { rings ->
                     val freshRings = rings.filterNot { it.id in seenRingIds }
                     seenRingIds.addAll(rings.map { it.id })
+                    // The full-screen ring overlay shows these, so no status text is needed here.
+                    _uiState.update { it.copy(loading = false, incomingRings = rings) }
                     if (firstRingSnapshot) {
                         // Rings that arrived while the app was closed: show them, but don't replay the sound.
                         firstRingSnapshot = false
-                        _uiState.update {
-                            it.copy(
-                                loading = false,
-                                incomingRings = rings,
-                                status = if (rings.isNotEmpty()) "${rings.size} missed ring(s)" else it.status
-                            )
-                        }
                         return@collect
                     }
                     if (freshRings.isNotEmpty()) {
-                        val strongest = freshRings.maxBy { if (it.superRing) 1 else 0 }
-                        ringPlayer.play(strongest.superRing)
-                        _uiState.update {
-                            it.copy(
-                                loading = false,
-                                incomingRings = rings,
-                                status = if (strongest.superRing) "Super ring received" else "Someone needs you"
-                            )
-                        }
-                    } else {
-                        _uiState.update { it.copy(loading = false, incomingRings = rings) }
+                        ringPlayer.play(freshRings.any { it.superRing })
+                    } else if (rings.isEmpty()) {
+                        // Answered elsewhere (e.g. from the notification): stop the sound.
+                        ringPlayer.stop()
                     }
                 }
         }
@@ -255,6 +306,11 @@ class PagerViewModel(
     private fun publishPairs() {
         val all = (outgoingPairs + incomingPairsCache).distinctBy { it.id }.sortedBy { it.createdAtMillis }
         _uiState.update { it.copy(loading = false, pairs = all, incomingPairs = incomingPairsCache) }
+    }
+
+    private companion object {
+        const val STATUS_VISIBLE_MS = 4_000L
+        const val EXPIRY_CHECK_MS = 5_000L
     }
 
     private fun firebaseStatus(error: Throwable, fallback: String): String {

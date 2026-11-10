@@ -276,11 +276,23 @@ export const respondToRing = onCall({ region }, async (request) => {
     throw new HttpsError("permission-denied", "Only the receiver can respond.");
   }
 
-  await receiptRef.update({
-    status: response,
-    respondedAt: admin.firestore.FieldValue.serverTimestamp()
-  });
-  await markLastRing(receipt.pairId as string, receipt.senderId as string, receiptId, response);
+  // One answer covers every unanswered ring from the same person, so stacked rings clear together.
+  const pendingFromSamePerson = await db
+    .collection("ringReceipts")
+    .where("receiverId", "==", receiverId)
+    .where("pairId", "==", receipt.pairId)
+    .where("status", "==", "sent")
+    .get();
+  const respondedAt = admin.firestore.FieldValue.serverTimestamp();
+  const batch = db.batch();
+  batch.update(receiptRef, { status: response, respondedAt });
+  pendingFromSamePerson.docs
+    .filter((doc) => doc.id !== receiptId)
+    .forEach((doc) => batch.update(doc.ref, { status: response, respondedAt }));
+  await batch.commit();
+  // Stacked rings were answered together, so the pair's last-ring status updates whichever one is newest.
+  const answeredIds = [receiptId, ...pendingFromSamePerson.docs.map((doc) => doc.id)];
+  await markLastRing(receipt.pairId as string, receipt.senderId as string, answeredIds, response);
 
   const sender = await db.collection("devices").doc(receipt.senderId as string).get();
   const senderToken = sender.get("fcmToken") as string | undefined;
@@ -308,15 +320,16 @@ export const respondToRing = onCall({ region }, async (request) => {
 async function markLastRing(
   pairId: string | undefined,
   ringerId: string,
-  receiptId: string,
+  receiptIds: string | string[],
   status: string
 ): Promise<void> {
+  const ids = Array.isArray(receiptIds) ? receiptIds : [receiptIds];
   if (!pairId) return;
   const pairRef = db.collection("pairs").doc(pairId);
   await db.runTransaction(async (transaction) => {
     const snapshot = await transaction.get(pairRef);
     const last = snapshot.get(`lastRing.${ringerId}`) as { receiptId?: string } | undefined;
-    if (!snapshot.exists || last?.receiptId !== receiptId) return;
+    if (!snapshot.exists || !last?.receiptId || !ids.includes(last.receiptId)) return;
     transaction.update(pairRef, {
       [`lastRing.${ringerId}.status`]: status,
       [`lastRing.${ringerId}.respondedAt`]: admin.firestore.FieldValue.serverTimestamp()
