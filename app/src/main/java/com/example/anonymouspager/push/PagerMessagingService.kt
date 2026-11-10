@@ -1,10 +1,8 @@
 package com.example.anonymouspager.push
 
 import android.app.PendingIntent
-import android.content.Intent
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
-import com.example.anonymouspager.MainActivity
 import com.example.anonymouspager.R
 import com.example.anonymouspager.data.PagerRepository
 import com.google.firebase.messaging.FirebaseMessagingService
@@ -30,14 +28,16 @@ class PagerMessagingService : FirebaseMessagingService() {
             return
         }
         if (type != "ring") return
+        // App is open: the in-app ring already plays the sound and shows Accept/Ignore.
+        if (AppVisibility.isForeground) return
 
         val receiptId = message.data["receiptId"].orEmpty()
         val superRing = message.data["superRing"] == "true"
-        val notificationId = receiptId.hashCode()
+        val notificationId = NotificationHelper.ringNotificationId(receiptId)
         val openIntent = PendingIntent.getActivity(
             this,
             notificationId,
-            Intent(this, MainActivity::class.java),
+            NotificationHelper.openAppIntent(this),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
         val acceptIntent = RingActionReceiver.pendingIntent(this, receiptId, "accepted", notificationId)
@@ -67,7 +67,7 @@ class PagerMessagingService : FirebaseMessagingService() {
         val openIntent = PendingIntent.getActivity(
             this,
             notificationId,
-            Intent(this, MainActivity::class.java),
+            NotificationHelper.openAppIntent(this),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
         val notification = NotificationCompat.Builder(this, NotificationHelper.RING_CHANNEL_ID)

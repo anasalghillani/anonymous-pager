@@ -1,10 +1,10 @@
 package com.example.anonymouspager.ui
 
 import android.app.Application
-import androidx.core.app.NotificationManagerCompat
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.anonymouspager.audio.RingPlayer
+import com.example.anonymouspager.push.NotificationHelper
 import com.example.anonymouspager.data.PagerCode
 import com.example.anonymouspager.data.PagerPair
 import com.example.anonymouspager.data.PagerRing
@@ -211,9 +211,8 @@ class PagerViewModel(
     }
 
     private fun cancelRingNotifications(rings: List<PagerRing>) {
-        val notifications = NotificationManagerCompat.from(getApplication<Application>())
         // Same id the push service uses when it shows a ring notification.
-        rings.forEach { notifications.cancel(it.id.hashCode()) }
+        rings.forEach { NotificationHelper.cancelRing(getApplication<Application>(), it.id) }
     }
 
     /** Shows a short message; it disappears by itself after a few seconds unless [autoClear] is false. */
