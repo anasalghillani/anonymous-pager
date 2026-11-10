@@ -144,6 +144,7 @@ export const redeemCode = onCall({ region }, async (request) => {
 export const sendRing = onCall({ region }, async (request) => {
   const senderId = requireUid(request.auth);
   const pairId = requireString(request.data?.pairId, "pairId");
+  const superRing = request.data?.superRing === true;
   const pairRef = db.collection("pairs").doc(pairId);
   const rateLimitRef = db.collection("rateLimits").doc(pairId);
   const now = Date.now();
@@ -189,6 +190,7 @@ export const sendRing = onCall({ region }, async (request) => {
       senderId,
       receiverId,
       status: "sent",
+      superRing,
       createdAt: timestamp,
       expiresAt: admin.firestore.Timestamp.fromMillis(now + CODE_TTL_MS)
     });
@@ -198,23 +200,28 @@ export const sendRing = onCall({ region }, async (request) => {
 
   const receiver = await db.collection("devices").doc(ringContext.receiverId).get();
   const fcmToken = receiver.get("fcmToken") as string | undefined;
-  if (!fcmToken) {
-    throw new HttpsError("failed-precondition", "Receiver is not reachable.");
+  let pushed = false;
+  if (fcmToken) {
+    // The receipt is already saved, so an open app still sees the ring even if push fails.
+    pushed = await getMessaging()
+      .send({
+        token: fcmToken,
+        data: {
+          type: "ring",
+          receiptId: ringContext.receiptId,
+          pairId,
+          superRing: superRing ? "true" : "false"
+        },
+        android: {
+          priority: "high",
+          ttl: CODE_TTL_MS
+        }
+      })
+      .then(() => true)
+      .catch(() => false);
   }
 
-  await getMessaging().send({
-    token: fcmToken,
-    data: {
-      type: "ring",
-      receiptId: ringContext.receiptId,
-      pairId
-    },
-    android: {
-      priority: "high"
-    }
-  });
-
-  return { ok: true, receiptId: ringContext.receiptId };
+  return { ok: true, receiptId: ringContext.receiptId, pushed };
 });
 
 export const respondToRing = onCall({ region }, async (request) => {
@@ -305,6 +312,32 @@ export const blockPair = onCall({ region }, async (request) => {
     transaction.update(pairRef, {
       status: "blocked",
       blockedBy: blockerId,
+      updatedAt: admin.firestore.FieldValue.serverTimestamp()
+    });
+  });
+
+  return { ok: true };
+});
+
+export const unblockPair = onCall({ region }, async (request) => {
+  const uid = requireUid(request.auth);
+  const pairId = requireString(request.data?.pairId, "pairId");
+  const pairRef = db.collection("pairs").doc(pairId);
+  const snapshot = await pairRef.get();
+  if (!snapshot.exists) {
+    throw new HttpsError("not-found", "Connection not found.");
+  }
+  const pair = snapshot.data() ?? {};
+  if (pair.blockedBy !== uid) {
+    throw new HttpsError("permission-denied", "Only the person who blocked can unblock.");
+  }
+
+  const blockedId = pair.senderId === uid ? (pair.receiverId as string) : (pair.senderId as string);
+  await db.runTransaction(async (transaction) => {
+    transaction.delete(db.collection("blocks").doc(`${uid}_${blockedId}`));
+    transaction.update(pairRef, {
+      status: "active",
+      blockedBy: admin.firestore.FieldValue.delete(),
       updatedAt: admin.firestore.FieldValue.serverTimestamp()
     });
   });

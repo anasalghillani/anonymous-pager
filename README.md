@@ -1,4 +1,4 @@
-# 📟 Anonymous Pager
+# 📟 Wen · وين
 
 > **Privacy-First Peer Alerting System**: No names, no phone numbers, no contact books, no identity leakage.
 
@@ -10,7 +10,7 @@
 
 ## 🔒 What is Anonymous Pager?
 
-**Anonymous Pager** is a native Android application built with **Kotlin** and **Jetpack Compose**. It allows two individuals to establish a direct, anonymous signaling channel via temporary PINs or QR codes — enabling one user to "ring" or alert the other without exchanging any personal identifiable information (PII).
+**Wen** (وين, formerly Anonymous Pager) is a native Android application built with **Kotlin** and **Jetpack Compose**. It allows two individuals to establish a direct, anonymous signaling channel via temporary PINs or QR codes — enabling one user to "ring" or alert the other without exchanging any personal identifiable information (PII).
 
 Think of it as a **digital physical pager**: secure, instant, zero-metadata, and strictly peer-scoped.
 
@@ -60,7 +60,12 @@ anonymous-pager/
 * **JDK**: 17 or higher
 * **Firebase Project**: Spark (free) or Blaze plan
 
-### 2. Running the Android Client
+### 2. Firebase setup
+1. In the Firebase console, add an Android app with package name **`com.anas.wen`** and download its `google-services.json` into `app/`.
+2. Enable **Authentication → Sign-in method → Anonymous**.
+3. Deploy functions and rules (Blaze plan required): `firebase deploy --only functions,firestore`.
+
+### 3. Running the Android Client
 1. Clone this repository:
    ```bash
    git clone https://github.com/anasalghillani/anonymous-pager.git
@@ -69,7 +74,7 @@ anonymous-pager/
 3. Let Gradle sync dependencies.
 4. Run on an Android emulator or physical device (Android 8.0+ / API 26+).
 
-### 3. Running Firebase Emulator Suite (Functions & Database)
+### 4. Running Firebase Emulator Suite (Functions & Database)
 ```bash
 cd functions
 npm install
@@ -87,7 +92,7 @@ To deploy updated Cloud Functions and Firestore rules to Firebase:
 firebase deploy --only functions,firestore
 ```
 
-> **Note**: Standard real-time ringing works out-of-the-box on the free **Spark plan** when the app is active. Full push notifications when the app is killed require Firebase Cloud Functions deployed on the **Blaze plan**.
+> **Note**: The app signs in with Firebase Anonymous Auth and sends every write through Cloud Functions; Firestore rules only let a device read its own connections and rings. This requires the **Blaze plan**.
 
 ---
 

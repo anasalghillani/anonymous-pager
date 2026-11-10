@@ -10,6 +10,7 @@ import android.os.VibratorManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -19,8 +20,10 @@ class RingPlayer(context: Context) {
     private var ringJob: Job? = null
 
     fun play(superRing: Boolean) {
-        ringJob?.cancel()
+        val previousJob = ringJob
         ringJob = CoroutineScope(Dispatchers.Default).launch {
+            // Wait for the old ring to restore the volume before reading it again.
+            previousJob?.cancelAndJoin()
             val stream = if (superRing) AudioManager.STREAM_ALARM else AudioManager.STREAM_NOTIFICATION
             val toneType = if (superRing) ToneGenerator.TONE_CDMA_ALERT_CALL_GUARD else ToneGenerator.TONE_PROP_BEEP
             val volume = if (superRing) 100 else 80
@@ -32,16 +35,19 @@ class RingPlayer(context: Context) {
                 runCatching { audioManager?.setStreamVolume(AudioManager.STREAM_ALARM, maxAlarmVolume, 0) }
             }
 
-            val repeats = if (superRing) 18 else 6
-            repeat(repeats) {
-                tone.startTone(toneType, if (superRing) 350 else 180)
-                vibrate(superRing)
-                delay(if (superRing) 520 else 700)
-            }
-            tone.release()
-
-            if (superRing && previousAlarmVolume > 0) {
-                runCatching { audioManager?.setStreamVolume(AudioManager.STREAM_ALARM, previousAlarmVolume, 0) }
+            try {
+                val repeats = if (superRing) 18 else 6
+                repeat(repeats) {
+                    tone.startTone(toneType, if (superRing) 350 else 180)
+                    vibrate(superRing)
+                    delay(if (superRing) 520 else 700)
+                }
+            } finally {
+                // Runs on stop()/cancel too, so the user's alarm volume is always restored.
+                tone.release()
+                if (superRing && previousAlarmVolume > 0) {
+                    runCatching { audioManager?.setStreamVolume(AudioManager.STREAM_ALARM, previousAlarmVolume, 0) }
+                }
             }
         }
     }
