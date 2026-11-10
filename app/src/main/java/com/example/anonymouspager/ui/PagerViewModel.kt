@@ -4,6 +4,7 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.anonymouspager.audio.RingPlayer
+import com.example.anonymouspager.push.NotificationHelper
 import com.example.anonymouspager.data.PagerCode
 import com.example.anonymouspager.data.PagerPair
 import com.example.anonymouspager.data.PagerRing
@@ -149,6 +150,7 @@ class PagerViewModel(
     fun respondToRing(ringId: String, response: String) {
         viewModelScope.launch {
             ringPlayer.stop()
+            NotificationHelper.cancelRing(getApplication<Application>(), ringId)
             when (val result = repository.respondToRing(ringId, response)) {
                 PagerResult.Ok -> _uiState.update { state ->
                     state.copy(
