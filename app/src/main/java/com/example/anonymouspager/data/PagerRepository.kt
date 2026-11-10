@@ -107,10 +107,6 @@ class PagerRepository(context: Context) {
                 val now = System.currentTimeMillis()
                 val rings = snapshot?.documents.orEmpty()
                     .filter { it.getString("status") == "sent" }
-                    .filter { doc ->
-                        val expiresAt = doc.getTimestamp("expiresAt").toMillisOrZero()
-                        expiresAt == 0L || expiresAt > now
-                    }
                     .map { document ->
                         PagerRing(
                             id = document.id,
@@ -118,9 +114,11 @@ class PagerRepository(context: Context) {
                             senderId = document.getString("senderId").orEmpty(),
                             receiverId = document.getString("receiverId").orEmpty(),
                             createdAtMillis = document.getTimestamp("createdAt").toMillisOrZero(),
-                            superRing = document.getBoolean("superRing") == true
+                            superRing = document.getBoolean("superRing") == true,
+                            expiresAtMillis = document.getTimestamp("expiresAt").toMillisOrZero()
                         )
                     }
+                    .filterNot { it.isExpired(now) }
                     .sortedByDescending { it.createdAtMillis }
                 trySend(rings)
             }

@@ -242,10 +242,20 @@ export const respondToRing = onCall({ region }, async (request) => {
     throw new HttpsError("permission-denied", "Only the receiver can respond.");
   }
 
-  await receiptRef.update({
-    status: response,
-    respondedAt: admin.firestore.FieldValue.serverTimestamp()
-  });
+  // One answer covers every unanswered ring from the same person, so stacked rings clear together.
+  const pendingFromSamePerson = await db
+    .collection("ringReceipts")
+    .where("receiverId", "==", receiverId)
+    .where("pairId", "==", receipt.pairId)
+    .where("status", "==", "sent")
+    .get();
+  const respondedAt = admin.firestore.FieldValue.serverTimestamp();
+  const batch = db.batch();
+  batch.update(receiptRef, { status: response, respondedAt });
+  pendingFromSamePerson.docs
+    .filter((doc) => doc.id !== receiptId)
+    .forEach((doc) => batch.update(doc.ref, { status: response, respondedAt }));
+  await batch.commit();
 
   const sender = await db.collection("devices").doc(receipt.senderId as string).get();
   const senderToken = sender.get("fcmToken") as string | undefined;
