@@ -392,6 +392,10 @@ private fun PairCard(
 ) {
     LcdCard(blocked = pair.blocked) {
         LcdText(if (pair.blocked) "CONN ${pair.tag} [BLOCKED]" else "CONN ${pair.tag}")
+        pair.myLastRing?.let { last ->
+            // Live: updates as soon as the other person taps Accept/Ignore.
+            LcdText(last.label())
+        }
         Spacer(Modifier.height(8.dp))
         if (pair.blocked) {
             BlockedPairActions(

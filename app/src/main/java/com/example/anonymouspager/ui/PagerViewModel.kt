@@ -21,6 +21,7 @@ data class PagerUiState(
     val loading: Boolean = true,
     val screen: PagerScreen = PagerScreen.Home,
     val code: PagerCode? = null,
+    /** Every connection I can ring: ones I scanned plus ones that scanned me (two-way). */
     val pairs: List<PagerPair> = emptyList(),
     val incomingPairs: List<PagerPair> = emptyList(),
     val incomingRings: List<PagerRing> = emptyList(),
@@ -46,6 +47,8 @@ class PagerViewModel(
     private var incomingPairListener: Job? = null
     private var ringListener: Job? = null
     private val seenRingIds = mutableSetOf<String>()
+    private var outgoingPairs: List<PagerPair> = emptyList()
+    private var incomingPairsCache: List<PagerPair> = emptyList()
     private var firstRingSnapshot = true
 
     init {
@@ -192,7 +195,8 @@ class PagerViewModel(
                     }
                 }
                 .collect { pairs ->
-                    _uiState.update { it.copy(loading = false, pairs = pairs) }
+                    outgoingPairs = pairs
+                    publishPairs()
                 }
         }
         incomingPairListener?.cancel()
@@ -204,7 +208,8 @@ class PagerViewModel(
                     }
                 }
                 .collect { pairs ->
-                    _uiState.update { it.copy(loading = false, incomingPairs = pairs) }
+                    incomingPairsCache = pairs
+                    publishPairs()
                 }
         }
         ringListener?.cancel()
@@ -245,6 +250,11 @@ class PagerViewModel(
                     }
                 }
         }
+    }
+
+    private fun publishPairs() {
+        val all = (outgoingPairs + incomingPairsCache).distinctBy { it.id }.sortedBy { it.createdAtMillis }
+        _uiState.update { it.copy(loading = false, pairs = all, incomingPairs = incomingPairsCache) }
     }
 
     private fun firebaseStatus(error: Throwable, fallback: String): String {
