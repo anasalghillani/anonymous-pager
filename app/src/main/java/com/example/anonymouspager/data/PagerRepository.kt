@@ -85,8 +85,10 @@ class PagerRepository(context: Context) {
             call("respondToRing", mapOf("receiptId" to receiptId, "response" to response))
         }
 
+    /** Pairs I made by scanning someone's code. */
     fun savedPairs(): Flow<List<PagerPair>> = pairFlow("senderId")
 
+    /** Pairs made when someone scanned my code. Pairs are two-way, so I can ring these too. */
     fun incomingPairs(): Flow<List<PagerPair>> = pairFlow("receiverId")
 
     /** Unanswered rings addressed to this device that have not expired yet. */
@@ -154,7 +156,8 @@ class PagerRepository(context: Context) {
                             receiverId = document.getString("receiverId").orEmpty(),
                             createdAtMillis = document.getTimestamp("createdAt").toMillisOrZero(),
                             blocked = document.getString("status") == "blocked",
-                            blockedByMe = document.getString("blockedBy") == currentUserId
+                            blockedByMe = document.getString("blockedBy") == currentUserId,
+                            myLastRing = lastRingOf(document.get("lastRing.$currentUserId"))
                         )
                     }
                     .sortedBy { it.createdAtMillis }
@@ -165,6 +168,16 @@ class PagerRepository(context: Context) {
             registration?.remove()
             registration = null
         }
+    }
+
+    private fun lastRingOf(raw: Any?): LastRing? {
+        val map = raw as? Map<*, *> ?: return null
+        return LastRing(
+            status = map["status"] as? String ?: "sent",
+            superRing = map["superRing"] == true,
+            sentAtMillis = (map["sentAt"] as? Timestamp).toMillisOrZero(),
+            expiresAtMillis = (map["expiresAt"] as? Timestamp).toMillisOrZero()
+        )
     }
 
     private suspend fun ensureSignedIn() {
