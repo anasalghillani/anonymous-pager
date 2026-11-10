@@ -193,7 +193,7 @@ class PagerRepository(context: Context) {
             // Server messages are written for users ("Code has expired.", "Too many rings...").
             throw IllegalStateException(error.message ?: "Something went wrong", error)
         }
-        return result.data as? Map<String, Any?> ?: emptyMap()
+        return result.getData() as? Map<String, Any?> ?: emptyMap()
     }
 
     private suspend fun result(fallback: String, block: suspend () -> Unit): PagerResult =
