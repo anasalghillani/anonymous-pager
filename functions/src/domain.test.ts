@@ -4,8 +4,12 @@ import {
   extractCode,
   generatePin,
   isExpired,
+  otherParty,
+  pairIdFor,
   pruneRingAttempts,
-  qrPayloadFor
+  qrPayloadFor,
+  rateLimitKey,
+  redeemBlockAction
 } from "./domain";
 
 describe("domain", () => {
@@ -34,5 +38,28 @@ describe("domain", () => {
     expect(pruneRingAttempts([0, now - 1, now - 1000], now)).toEqual([now - 1, now - 1000]);
     expect(canSendRing([now - 1, now - 2, now - 3], now)).toBe(false);
     expect(canSendRing([now - 1, now - 2], now)).toBe(true);
+  });
+
+  it("uses one pair id for both directions", () => {
+    expect(pairIdFor("alice", "bob")).toBe("alice_bob");
+    expect(pairIdFor("bob", "alice")).toBe("alice_bob");
+  });
+
+  it("finds the other party so either side can ring", () => {
+    const pair = { senderId: "scanner", receiverId: "owner" };
+    expect(otherParty(pair, "scanner")).toBe("owner");
+    expect(otherParty(pair, "owner")).toBe("scanner");
+    expect(otherParty(pair, "stranger")).toBeNull();
+  });
+
+  it("rate limits each direction separately", () => {
+    expect(rateLimitKey("a_b", "a")).not.toBe(rateLimitKey("a_b", "b"));
+  });
+
+  it("handles leftover blocks on re-pairing", () => {
+    expect(redeemBlockAction(true, false)).toBe("reject");
+    expect(redeemBlockAction(true, true)).toBe("reject");
+    expect(redeemBlockAction(false, true)).toBe("clear-own-block");
+    expect(redeemBlockAction(false, false)).toBe("none");
   });
 });

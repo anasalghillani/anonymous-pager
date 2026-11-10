@@ -6,8 +6,12 @@ import {
   canSendRing,
   extractCode,
   generatePin,
+  otherParty,
+  pairIdFor,
   pruneRingAttempts,
-  qrPayloadFor
+  qrPayloadFor,
+  rateLimitKey,
+  redeemBlockAction
 } from "./domain";
 
 admin.initializeApp();
@@ -115,10 +119,28 @@ export const redeemCode = onCall({ region }, async (request) => {
       throw new HttpsError("deadline-exceeded", "Code has expired.");
     }
 
-    const pairId = `${senderId}_${receiverId}`;
+    // Pairs are two-way: one doc per two people, whichever side scanned.
+    const pairId = pairIdFor(senderId, receiverId);
     const pairRef = db.collection("pairs").doc(pairId);
+    const ownerBlockRef = db.collection("blocks").doc(`${receiverId}_${senderId}`);
+    const scannerBlockRef = db.collection("blocks").doc(`${senderId}_${receiverId}`);
+    const [ownerBlock, scannerBlock] = await Promise.all([
+      transaction.get(ownerBlockRef),
+      transaction.get(scannerBlockRef)
+    ]);
+
+    // Blocks outlive "delete", so check them here instead of failing later on ring.
+    const blockAction = redeemBlockAction(ownerBlock.exists, scannerBlock.exists);
+    if (blockAction === "reject") {
+      throw new HttpsError("permission-denied", "You can't connect with this person.");
+    }
+    if (blockAction === "clear-own-block") {
+      transaction.delete(scannerBlockRef);
+    }
+
     const createdAt = admin.firestore.Timestamp.fromMillis(now);
 
+    // set() replaces any old deleted/blocked doc, so no stale blockedBy or lastRing survives.
     transaction.set(pairRef, {
       senderId,
       receiverId,
@@ -146,7 +168,7 @@ export const sendRing = onCall({ region }, async (request) => {
   const pairId = requireString(request.data?.pairId, "pairId");
   const superRing = request.data?.superRing === true;
   const pairRef = db.collection("pairs").doc(pairId);
-  const rateLimitRef = db.collection("rateLimits").doc(pairId);
+  const rateLimitRef = db.collection("rateLimits").doc(rateLimitKey(pairId, senderId));
   const now = Date.now();
 
   const ringContext = await db.runTransaction(async (transaction) => {
@@ -155,11 +177,12 @@ export const sendRing = onCall({ region }, async (request) => {
       throw new HttpsError("not-found", "Connection not found.");
     }
     const pair = pairSnapshot.data() ?? {};
-    if (pair.senderId !== senderId || pair.status !== "active") {
+    // Either side can ring: "senderId" on the pair only records who scanned whom.
+    const receiverId = otherParty(pair, senderId);
+    if (!receiverId || pair.status !== "active") {
       throw new HttpsError("permission-denied", "Connection cannot be ringed.");
     }
 
-    const receiverId = pair.receiverId as string;
     const blockRef = db.collection("blocks").doc(`${receiverId}_${senderId}`);
     const [blockSnapshot, rateLimitSnapshot] = await Promise.all([
       transaction.get(blockRef),
@@ -180,6 +203,7 @@ export const sendRing = onCall({ region }, async (request) => {
 
     const receiptRef = db.collection("ringReceipts").doc();
     const timestamp = admin.firestore.Timestamp.fromMillis(now);
+    const expiresAt = admin.firestore.Timestamp.fromMillis(now + CODE_TTL_MS);
     transaction.set(rateLimitRef, {
       pairId,
       attempts: [...attempts, now],
@@ -192,7 +216,17 @@ export const sendRing = onCall({ region }, async (request) => {
       status: "sent",
       superRing,
       createdAt: timestamp,
-      expiresAt: admin.firestore.Timestamp.fromMillis(now + CODE_TTL_MS)
+      expiresAt
+    });
+    // Live status for the ringer's connection card (lastRing.<ringerUid>).
+    transaction.update(pairRef, {
+      [`lastRing.${senderId}`]: {
+        receiptId: receiptRef.id,
+        status: "sent",
+        superRing,
+        sentAt: timestamp,
+        expiresAt
+      }
     });
 
     return { receiverId, receiptId: receiptRef.id };
@@ -242,10 +276,23 @@ export const respondToRing = onCall({ region }, async (request) => {
     throw new HttpsError("permission-denied", "Only the receiver can respond.");
   }
 
-  await receiptRef.update({
-    status: response,
-    respondedAt: admin.firestore.FieldValue.serverTimestamp()
-  });
+  // One answer covers every unanswered ring from the same person, so stacked rings clear together.
+  const pendingFromSamePerson = await db
+    .collection("ringReceipts")
+    .where("receiverId", "==", receiverId)
+    .where("pairId", "==", receipt.pairId)
+    .where("status", "==", "sent")
+    .get();
+  const respondedAt = admin.firestore.FieldValue.serverTimestamp();
+  const batch = db.batch();
+  batch.update(receiptRef, { status: response, respondedAt });
+  pendingFromSamePerson.docs
+    .filter((doc) => doc.id !== receiptId)
+    .forEach((doc) => batch.update(doc.ref, { status: response, respondedAt }));
+  await batch.commit();
+  // Stacked rings were answered together, so the pair's last-ring status updates whichever one is newest.
+  const answeredIds = [receiptId, ...pendingFromSamePerson.docs.map((doc) => doc.id)];
+  await markLastRing(receipt.pairId as string, receipt.senderId as string, answeredIds, response);
 
   const sender = await db.collection("devices").doc(receipt.senderId as string).get();
   const senderToken = sender.get("fcmToken") as string | undefined;
@@ -265,6 +312,30 @@ export const respondToRing = onCall({ region }, async (request) => {
 
   return { ok: true };
 });
+
+/**
+ * Mirrors a ring answer onto the pair doc so the ringer's card updates live.
+ * Only touches it if this receipt is still the ringer's latest ring on that pair.
+ */
+async function markLastRing(
+  pairId: string | undefined,
+  ringerId: string,
+  receiptIds: string | string[],
+  status: string
+): Promise<void> {
+  const ids = Array.isArray(receiptIds) ? receiptIds : [receiptIds];
+  if (!pairId) return;
+  const pairRef = db.collection("pairs").doc(pairId);
+  await db.runTransaction(async (transaction) => {
+    const snapshot = await transaction.get(pairRef);
+    const last = snapshot.get(`lastRing.${ringerId}`) as { receiptId?: string } | undefined;
+    if (!snapshot.exists || !last?.receiptId || !ids.includes(last.receiptId)) return;
+    transaction.update(pairRef, {
+      [`lastRing.${ringerId}.status`]: status,
+      [`lastRing.${ringerId}.respondedAt`]: admin.firestore.FieldValue.serverTimestamp()
+    });
+  });
+}
 
 export const deletePair = onCall({ region }, async (request) => {
   const uid = requireUid(request.auth);
@@ -301,7 +372,7 @@ export const blockPair = onCall({ region }, async (request) => {
   }
 
   const blockerId = uid;
-  const blockedId = pair.senderId === uid ? (pair.receiverId as string) : (pair.senderId as string);
+  const blockedId = otherParty(pair, uid) as string;
   await db.runTransaction(async (transaction) => {
     transaction.set(db.collection("blocks").doc(`${blockerId}_${blockedId}`), {
       blockerId,
@@ -332,7 +403,7 @@ export const unblockPair = onCall({ region }, async (request) => {
     throw new HttpsError("permission-denied", "Only the person who blocked can unblock.");
   }
 
-  const blockedId = pair.senderId === uid ? (pair.receiverId as string) : (pair.senderId as string);
+  const blockedId = otherParty(pair, uid) as string;
   await db.runTransaction(async (transaction) => {
     transaction.delete(db.collection("blocks").doc(`${uid}_${blockedId}`));
     transaction.update(pairRef, {

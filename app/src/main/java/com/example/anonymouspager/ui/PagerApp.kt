@@ -2,11 +2,14 @@ package com.example.anonymouspager.ui
 
 import android.Manifest
 import android.content.pm.PackageManager
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -25,6 +28,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -38,8 +42,10 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -56,8 +62,13 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.repeatOnLifecycle
 import com.example.anonymouspager.data.PagerPair
 import com.example.anonymouspager.data.PagerRing
+import com.example.anonymouspager.data.pairTag
+import kotlinx.coroutines.delay
 
 private val PagerBlack = Color(0xFF12110E)
 private val PagerBody = Color(0xFF1F1D18)
@@ -70,9 +81,22 @@ private val LcdDark = Color(0xFF172015)
 private val LcdMuted = Color(0xFF40523A)
 private val Mono = FontFamily.Monospace
 
+/** A destructive action waiting for the user to confirm it in a dialog. */
+private data class PendingConfirm(val pairId: String, val tag: String, val block: Boolean)
+
 @Composable
 fun PagerApp(viewModel: PagerViewModel) {
     val state by viewModel.uiState.collectAsState()
+    var pendingConfirm by remember { mutableStateOf<PendingConfirm?>(null) }
+
+    // Phone Back button moves back one screen instead of closing the app.
+    BackHandler(enabled = state.screen != PagerScreen.Home) { viewModel.goBack() }
+
+    val tagFor = { pairId: String ->
+        (state.pairs + state.incomingPairs).firstOrNull { it.id == pairId }?.tag.orEmpty()
+    }
+    val confirmDelete = { pairId: String -> pendingConfirm = PendingConfirm(pairId, tagFor(pairId), block = false) }
+    val confirmBlock = { pairId: String -> pendingConfirm = PendingConfirm(pairId, tagFor(pairId), block = true) }
     MaterialTheme(
         colorScheme = MaterialTheme.colorScheme.copy(
             primary = PagerGold,
@@ -87,55 +111,74 @@ fun PagerApp(viewModel: PagerViewModel) {
                 .background(PagerBlack),
             color = PagerBlack
         ) {
-            PagerDeviceFrame {
-                Box(Modifier.fillMaxSize()) {
-                    when (state.screen) {
-                        PagerScreen.Home -> HomeScreen(
-                            status = state.status,
-                            onRing = viewModel::openRing,
-                            onBeRinged = viewModel::createCode
-                        )
+            Box(Modifier.fillMaxSize()) {
+                PagerDeviceFrame {
+                    Box(Modifier.fillMaxSize()) {
+                        when (state.screen) {
+                            PagerScreen.Home -> HomeScreen(
+                                status = state.status,
+                                onRing = viewModel::openRing,
+                                onBeRinged = viewModel::openBeRinged
+                            )
 
-                        PagerScreen.BeRinged -> BeRingedScreen(
-                            state = state,
-                            onBack = viewModel::goHome,
-                            onRefresh = viewModel::createCode,
-                            onDelete = viewModel::deletePair,
-                            onBlock = viewModel::blockPair,
-                            onUnblock = viewModel::unblockPair,
-                            onRespond = viewModel::respondToRing
-                        )
+                            PagerScreen.BeRinged -> BeRingedScreen(
+                                state = state,
+                                onBack = viewModel::goHome,
+                                onRefresh = viewModel::createCode,
+                                onCodeExpired = viewModel::onCodeExpired,
+                                onDelete = confirmDelete,
+                                onBlock = confirmBlock,
+                                onUnblock = viewModel::unblockPair
+                            )
 
-                        PagerScreen.Ring -> RingScreen(
-                            state = state,
-                            onBack = viewModel::goHome,
-                            onCodeChange = viewModel::updateCodeInput,
-                            onRedeem = viewModel::redeemTypedCode,
-                            onScan = viewModel::openScanner,
-                            onRing = viewModel::ring,
-                            onSuperRing = viewModel::superRing,
-                            onDelete = viewModel::deletePair,
-                            onBlock = viewModel::blockPair,
-                            onUnblock = viewModel::unblockPair
-                        )
+                            PagerScreen.Ring -> RingScreen(
+                                state = state,
+                                onBack = viewModel::goHome,
+                                onCodeChange = viewModel::updateCodeInput,
+                                onRedeem = viewModel::redeemTypedCode,
+                                onScan = viewModel::openScanner,
+                                onRing = viewModel::ring,
+                                onSuperRing = viewModel::superRing,
+                                onDelete = confirmDelete,
+                                onBlock = confirmBlock,
+                                onUnblock = viewModel::unblockPair
+                            )
 
-                        PagerScreen.Scanner -> ScannerPermissionScreen(
-                            onBack = viewModel::openRing,
-                            onScanned = viewModel::redeemScannedCode
-                        )
-                    }
+                            PagerScreen.Scanner -> ScannerPermissionScreen(
+                                onBack = viewModel::openRing,
+                                onScanned = viewModel::redeemScannedCode
+                            )
+                        }
 
-                    if (state.loading) {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .background(Color(0x99000000)),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            CircularProgressIndicator(color = PagerGold)
+                        if (state.loading) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .background(Color(0x99000000)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                CircularProgressIndicator(color = PagerGold)
+                            }
                         }
                     }
+
+                    pendingConfirm?.let { pending ->
+                        ConfirmDialog(
+                            pending = pending,
+                            onConfirm = {
+                                pendingConfirm = null
+                                if (pending.block) viewModel.blockPair(pending.pairId) else viewModel.deletePair(pending.pairId)
+                            },
+                            onDismiss = { pendingConfirm = null }
+                        )
+                    }
                 }
+
+                // Covers the whole window on every screen, so a ring can be answered wherever the user is.
+                IncomingRingOverlay(
+                    rings = state.incomingRings,
+                    onRespond = viewModel::respondToPair
+                )
             }
         }
     }
@@ -272,24 +315,30 @@ private fun BeRingedScreen(
     state: PagerUiState,
     onBack: () -> Unit,
     onRefresh: () -> Unit,
+    onCodeExpired: () -> Unit,
     onDelete: (String) -> Unit,
     onBlock: (String) -> Unit,
-    onUnblock: (String) -> Unit,
-    onRespond: (String, String) -> Unit
+    onUnblock: (String) -> Unit
 ) {
     LcdColumn {
         TopBar(title = "BE RINGED", onBack = onBack)
         Spacer(Modifier.height(12.dp))
-        IncomingRingPanel(state.incomingRings, onRespond)
-        if (state.incomingRings.isNotEmpty()) {
-            Spacer(Modifier.height(10.dp))
-        }
         val code = state.code
-        if (code != null) {
+        val connectedTag = state.justConnectedTag
+        if (connectedTag != null) {
+            LcdCard {
+                LcdTitle("CONNECTED!", textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
+                LcdText(
+                    "CONN $connectedTag\nYOU CAN NOW RING\nEACH OTHER",
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        } else if (code != null) {
             PagerQrCode(payload = code.qrPayload, modifier = Modifier.align(Alignment.CenterHorizontally))
             Spacer(Modifier.height(10.dp))
             LcdTitle(code.code, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
-            LcdText("EXPIRES IN 10 MIN", textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
+            CodeCountdown(expiresAtMillis = code.expiresAtMillis, onExpired = onCodeExpired)
         }
         Spacer(Modifier.height(12.dp))
         PagerSecondaryButton("NEW CODE", onClick = onRefresh)
@@ -392,6 +441,10 @@ private fun PairCard(
 ) {
     LcdCard(blocked = pair.blocked) {
         LcdText(if (pair.blocked) "CONN ${pair.tag} [BLOCKED]" else "CONN ${pair.tag}")
+        pair.myLastRing?.let { last ->
+            // Live: updates as soon as the other person taps Accept/Ignore.
+            LcdText(last.label())
+        }
         Spacer(Modifier.height(8.dp))
         if (pair.blocked) {
             BlockedPairActions(
@@ -442,21 +495,132 @@ private fun BlockedPairActions(onUnblock: (() -> Unit)?, onDelete: () -> Unit) {
     }
 }
 
+/**
+ * Full-screen incoming ring. Rings are grouped by connection: one ACCEPT / IGNORE answers
+ * every waiting ring from that person. If several people rang, the newest one is shown first.
+ */
 @Composable
-private fun IncomingRingPanel(rings: List<PagerRing>, onRespond: (String, String) -> Unit) {
+private fun IncomingRingOverlay(rings: List<PagerRing>, onRespond: (String, String) -> Unit) {
     val latest = rings.firstOrNull() ?: return
-    LcdCard(blocked = latest.superRing) {
-        LcdText(
-            if (latest.superRing) "!!! SUPER RING !!!" else "INCOMING RING",
+    val fromSamePerson = rings.filter { it.pairId == latest.pairId }
+    val superRing = fromSamePerson.any { it.superRing }
+    val otherPeople = rings.map { it.pairId }.distinct().size - 1
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(if (superRing) PagerRed else LcdGreen)
+            // Swallow taps so nothing behind the overlay can be pressed by accident.
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = {}
+            )
+            .windowInsetsPadding(WindowInsets.safeDrawing)
+            .padding(24.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
             modifier = Modifier.fillMaxWidth(),
-            textAlign = TextAlign.Center
-        )
-        Spacer(Modifier.height(8.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            PagerActionButton("ACCEPT", onClick = { onRespond(latest.id, "accepted") }, modifier = Modifier.weight(1f))
-            PagerDangerButton("IGNORE", onClick = { onRespond(latest.id, "ignored") }, modifier = Modifier.weight(1f))
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            LcdTitle(
+                if (superRing) "!!! SUPER RING !!!" else "INCOMING RING",
+                modifier = Modifier.fillMaxWidth(),
+                textAlign = TextAlign.Center
+            )
+            LcdText("CONN ${pairTag(latest.pairId)}", modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
+            if (fromSamePerson.size > 1) {
+                LcdText("${fromSamePerson.size} RINGS", modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
+            }
+            Spacer(Modifier.height(12.dp))
+            PagerActionButton(
+                "ACCEPT",
+                onClick = { onRespond(latest.pairId, "accepted") },
+                modifier = Modifier.fillMaxWidth()
+            )
+            PagerDangerButton(
+                "IGNORE",
+                onClick = { onRespond(latest.pairId, "ignored") },
+                modifier = Modifier.fillMaxWidth()
+            )
+            if (otherPeople > 0) {
+                LcdText("+$otherPeople MORE WAITING", modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
+            }
         }
     }
+}
+
+/**
+ * Live "EXPIRES IN m:ss" line; calls [onExpired] when it reaches zero. Only ticks while the
+ * app is visible, so a phone left on this screen in the background doesn't keep making codes.
+ */
+@Composable
+private fun CodeCountdown(expiresAtMillis: Long, onExpired: () -> Unit) {
+    var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    val lifecycleOwner = LocalLifecycleOwner.current
+    LaunchedEffect(expiresAtMillis, lifecycleOwner) {
+        lifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
+            while (true) {
+                now = System.currentTimeMillis()
+                if (now >= expiresAtMillis) {
+                    onExpired()
+                    break
+                }
+                delay(1_000L - now % 1_000L)
+            }
+        }
+    }
+    val secondsLeft = ((expiresAtMillis - now + 999L) / 1_000L).coerceAtLeast(0L)
+    LcdText(
+        if (secondsLeft > 0) "EXPIRES IN %d:%02d".format(secondsLeft / 60, secondsLeft % 60) else "CODE EXPIRED",
+        textAlign = TextAlign.Center,
+        modifier = Modifier.fillMaxWidth()
+    )
+}
+
+@Composable
+private fun ConfirmDialog(pending: PendingConfirm, onConfirm: () -> Unit, onDismiss: () -> Unit) {
+    val who = pending.tag.ifBlank { "THIS CONNECTION" }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = LcdGreen,
+        titleContentColor = LcdDark,
+        textContentColor = LcdDark,
+        title = {
+            Text(
+                if (pending.block) "BLOCK $who?" else "DELETE $who?",
+                fontFamily = Mono,
+                fontWeight = FontWeight.Bold
+            )
+        },
+        text = {
+            Text(
+                if (pending.block) {
+                    "Rings on this connection stop. You can unblock it later."
+                } else {
+                    "This removes the connection. You'll need a new code to pair again."
+                },
+                fontFamily = Mono
+            )
+        },
+        confirmButton = {
+            TextButton(onClick = onConfirm) {
+                Text(
+                    if (pending.block) "BLOCK" else "DELETE",
+                    color = PagerRed,
+                    fontFamily = Mono,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("CANCEL", color = LcdDark, fontFamily = Mono, fontWeight = FontWeight.Bold)
+            }
+        }
+    )
 }
 
 @Composable

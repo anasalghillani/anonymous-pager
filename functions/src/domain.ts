@@ -45,3 +45,39 @@ export function pruneRingAttempts(attempts: number[], nowMillis: number): number
 export function canSendRing(attempts: number[], nowMillis: number): boolean {
   return pruneRingAttempts(attempts, nowMillis).length < MAX_RINGS_PER_WINDOW;
 }
+
+/**
+ * One pair document per two people, whoever scanned whom. Sorting the ids means
+ * A scanning B and B scanning A land on the same connection (pairs are two-way).
+ */
+export function pairIdFor(a: string, b: string): string {
+  return a < b ? `${a}_${b}` : `${b}_${a}`;
+}
+
+/** The other person in a pair, or null when uid is not part of it. */
+export function otherParty(
+  pair: { senderId?: unknown; receiverId?: unknown },
+  uid: string
+): string | null {
+  if (pair.senderId === uid && typeof pair.receiverId === "string") return pair.receiverId;
+  if (pair.receiverId === uid && typeof pair.senderId === "string") return pair.senderId;
+  return null;
+}
+
+/** Rate limits are per direction, so one side ringing a lot never locks out the other. */
+export function rateLimitKey(pairId: string, ringerId: string): string {
+  return `${pairId}__${ringerId}`;
+}
+
+export type RedeemBlockAction = "reject" | "clear-own-block" | "none";
+
+/**
+ * Re-pairing rules for blocks left over from an earlier connection:
+ * - the code owner blocked the scanner: refuse (a fresh code must not bypass a block);
+ * - the scanner blocked the code owner: scanning again is a clear "reconnect", so lift it.
+ */
+export function redeemBlockAction(ownerBlockedScanner: boolean, scannerBlockedOwner: boolean): RedeemBlockAction {
+  if (ownerBlockedScanner) return "reject";
+  if (scannerBlockedOwner) return "clear-own-block";
+  return "none";
+}

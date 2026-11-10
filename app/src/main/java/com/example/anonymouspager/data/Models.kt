@@ -12,12 +12,38 @@ data class PagerPair(
     val receiverId: String,
     val createdAtMillis: Long,
     val blocked: Boolean = false,
-    val blockedByMe: Boolean = false
+    val blockedByMe: Boolean = false,
+    /** The last ring *I* sent on this connection (either side can ring). */
+    val myLastRing: LastRing? = null
 ) {
     /** Short tag derived from the pair id, so it never changes when other connections are removed. */
     val tag: String
-        get() = Integer.toHexString(id.hashCode() and 0xFFFF).uppercase().padStart(4, '0')
+        get() = pairTag(id)
 }
+
+data class LastRing(
+    val status: String,
+    val superRing: Boolean,
+    val sentAtMillis: Long,
+    val expiresAtMillis: Long
+) {
+    /** Short LCD label, e.g. "LAST RING 21:40 ACCEPTED". */
+    fun label(nowMillis: Long = System.currentTimeMillis()): String {
+        val state = when {
+            status == "accepted" -> "ACCEPTED"
+            status == "ignored" -> "IGNORED"
+            expiresAtMillis in 1..nowMillis -> "NO ANSWER"
+            else -> "WAITING..."
+        }
+        val time = java.text.SimpleDateFormat("HH:mm", java.util.Locale.US).format(java.util.Date(sentAtMillis))
+        val kind = if (superRing) "SUPER" else "RING"
+        return "LAST $kind $time $state"
+    }
+}
+
+/** Short display tag for a connection, shared by pair cards and the incoming ring screen. */
+fun pairTag(pairId: String): String =
+    Integer.toHexString(pairId.hashCode() and 0xFFFF).uppercase().padStart(4, '0')
 
 data class PagerRing(
     val id: String,
@@ -25,8 +51,12 @@ data class PagerRing(
     val senderId: String,
     val receiverId: String,
     val createdAtMillis: Long,
-    val superRing: Boolean = false
-)
+    val superRing: Boolean = false,
+    /** 0 means no expiry was stored. */
+    val expiresAtMillis: Long = 0L
+) {
+    fun isExpired(nowMillis: Long): Boolean = expiresAtMillis != 0L && expiresAtMillis <= nowMillis
+}
 
 sealed interface PagerResult {
     data object Ok : PagerResult
