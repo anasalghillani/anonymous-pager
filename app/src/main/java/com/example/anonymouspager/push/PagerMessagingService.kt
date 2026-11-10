@@ -45,7 +45,7 @@ class PagerMessagingService : FirebaseMessagingService() {
 
         val channel = if (superRing) NotificationHelper.SUPER_RING_CHANNEL_ID else NotificationHelper.RING_CHANNEL_ID
         val notification = NotificationCompat.Builder(this, channel)
-            .setSmallIcon(R.drawable.ic_launcher_foreground)
+            .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(if (superRing) "Super ring!" else "Someone needs you")
             .setContentText("Private ring received")
             .setPriority(NotificationCompat.PRIORITY_HIGH)
@@ -71,7 +71,7 @@ class PagerMessagingService : FirebaseMessagingService() {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
         val notification = NotificationCompat.Builder(this, NotificationHelper.RING_CHANNEL_ID)
-            .setSmallIcon(R.drawable.ic_launcher_foreground)
+            .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(title)
             .setContentText("Private response received")
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)
