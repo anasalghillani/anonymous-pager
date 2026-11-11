@@ -136,4 +136,23 @@
     <string name="notif_response_text">Private response received</string>
     <string name="notif_answer_failed_title">Answer not sent</string>
     <string name="notif_answer_failed_text">Open Wen to answer the ring</string>
+
+    <!-- Server errors (match functions/src/index.ts messages) -->
+    <string name="srv_signin_required">Anonymous sign-in is required.</string>
+    <string name="srv_code_unavailable">Could not create a temporary code.</string>
+    <string name="srv_bad_code">Enter a valid six digit code or QR payload.</string>
+    <string name="srv_code_not_found">Code not found.</string>
+    <string name="srv_code_invalid">Code is invalid.</string>
+    <string name="srv_own_code">You cannot pair with your own code.</string>
+    <string name="srv_code_expired">Code has expired.</string>
+    <string name="srv_cannot_connect">You can\'t connect with this person.</string>
+    <string name="srv_connection_not_found">Connection not found.</string>
+    <string name="srv_cannot_ring">Connection cannot be ringed.</string>
+    <string name="srv_blocked">This connection is blocked.</string>
+    <string name="srv_too_many_rings">Too many rings. Try again later.</string>
+    <string name="srv_ring_not_found">Ring receipt not found.</string>
+    <string name="srv_only_receiver">Only the receiver can respond.</string>
+    <string name="srv_cannot_delete">Connection cannot be deleted.</string>
+    <string name="srv_cannot_block">Connection cannot be blocked.</string>
+    <string name="srv_only_blocker">Only the person who blocked can unblock.</string>
 </resources>
