@@ -3,6 +3,8 @@ package com.example.anonymouspager.ui
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import androidx.annotation.StringRes
+import com.example.anonymouspager.R
 import com.example.anonymouspager.audio.RingPlayer
 import com.example.anonymouspager.push.NotificationHelper
 import com.example.anonymouspager.data.PagerCode
@@ -75,7 +77,7 @@ class PagerViewModel(
                 val started = runCatching { repository.ensureSignedInAndRegistered() }
                     .onFailure { error ->
                         _uiState.update {
-                            it.copy(loading = false, status = firebaseStatus(error, "Could not start private session"))
+                            it.copy(loading = false, status = firebaseStatus(error, str(R.string.err_start)))
                         }
                     }
                     .isSuccess
@@ -150,7 +152,7 @@ class PagerViewModel(
                 }
                 .onFailure { error ->
                     _uiState.update {
-                        it.copy(loading = false, code = null, status = firebaseStatus(error, "Could not create a code"))
+                        it.copy(loading = false, code = null, status = firebaseStatus(error, str(R.string.err_create_code)))
                     }
                 }
         }
@@ -175,9 +177,9 @@ class PagerViewModel(
 
     private fun sendRing(pairId: String, superRing: Boolean) {
         viewModelScope.launch {
-            showStatus(if (superRing) "Sending super ring..." else "Sending ring...", autoClear = false)
+            showStatus(str(if (superRing) R.string.sending_super else R.string.sending_ring), autoClear = false)
             when (val result = repository.sendRing(pairId, superRing)) {
-                PagerResult.Ok -> showStatus(if (superRing) "Super ring sent" else "Ring sent")
+                PagerResult.Ok -> showStatus(str(if (superRing) R.string.super_sent else R.string.ring_sent))
                 is PagerResult.Error -> showStatus(result.message)
             }
         }
@@ -186,7 +188,7 @@ class PagerViewModel(
     fun deletePair(pairId: String) {
         viewModelScope.launch {
             when (val result = repository.deletePair(pairId)) {
-                PagerResult.Ok -> showStatus("Connection deleted")
+                PagerResult.Ok -> showStatus(str(R.string.connection_deleted))
                 is PagerResult.Error -> showStatus(result.message)
             }
         }
@@ -195,7 +197,7 @@ class PagerViewModel(
     fun blockPair(pairId: String) {
         viewModelScope.launch {
             when (val result = repository.blockPair(pairId)) {
-                PagerResult.Ok -> showStatus("Connection blocked")
+                PagerResult.Ok -> showStatus(str(R.string.connection_blocked))
                 is PagerResult.Error -> showStatus(result.message)
             }
         }
@@ -204,7 +206,7 @@ class PagerViewModel(
     fun unblockPair(pairId: String) {
         viewModelScope.launch {
             when (val result = repository.unblockPair(pairId)) {
-                PagerResult.Ok -> showStatus("Connection unblocked")
+                PagerResult.Ok -> showStatus(str(R.string.connection_unblocked))
                 is PagerResult.Error -> showStatus(result.message)
             }
         }
@@ -224,7 +226,7 @@ class PagerViewModel(
         }
         viewModelScope.launch {
             when (val result = repository.respondToRing(latest.id, response)) {
-                PagerResult.Ok -> showStatus(if (response == "accepted") "Ring accepted" else "Ring ignored")
+                PagerResult.Ok -> showStatus(str(if (response == "accepted") R.string.ring_accepted else R.string.ring_ignored))
                 is PagerResult.Error -> {
                     // Put the rings back so the user can try again.
                     _uiState.update { state ->
@@ -270,7 +272,7 @@ class PagerViewModel(
 
     private fun redeemCode(input: String) {
         if (input.isBlank()) {
-            showStatus("Enter a PIN or scan a QR code")
+            showStatus(str(R.string.enter_pin_or_scan))
             return
         }
         viewModelScope.launch {
@@ -278,11 +280,11 @@ class PagerViewModel(
             runCatching { repository.redeemCode(input) }
                 .onSuccess {
                     _uiState.update { it.copy(loading = false, codeInput = "") }
-                    showStatus("Connection saved")
+                    showStatus(str(R.string.connection_saved))
                 }
                 .onFailure { error ->
                     _uiState.update {
-                        it.copy(loading = false, status = firebaseStatus(error, "Could not save connection"))
+                        it.copy(loading = false, status = firebaseStatus(error, str(R.string.err_save_connection)))
                     }
                 }
         }
@@ -292,7 +294,7 @@ class PagerViewModel(
         pairListener?.cancel()
         pairListener = viewModelScope.launch {
             repository.savedPairs()
-                .resilient("Could not load connections")
+                .resilient(str(R.string.err_load_connections))
                 .collect { pairs ->
                     outgoingPairs = pairs
                     publishPairs()
@@ -301,7 +303,7 @@ class PagerViewModel(
         incomingPairListener?.cancel()
         incomingPairListener = viewModelScope.launch {
             repository.incomingPairs()
-                .resilient("Could not load incoming connections")
+                .resilient(str(R.string.err_load_incoming))
                 .collect { pairs ->
                     val previous = knownIncomingPairs
                     knownIncomingPairs = pairs.associate { it.id to it.createdAtMillis }
@@ -327,7 +329,7 @@ class PagerViewModel(
         ringListener?.cancel()
         ringListener = viewModelScope.launch {
             repository.incomingRings()
-                .resilient("Could not load rings")
+                .resilient(str(R.string.err_load_rings))
                 .collect { rings ->
                     val freshRings = rings.filterNot { it.id in seenRingIds }
                     seenRingIds.addAll(rings.map { it.id })
@@ -380,6 +382,8 @@ class PagerViewModel(
         }
     }
 
+    private fun str(@StringRes id: Int): String = getApplication<Application>().getString(id)
+
     private fun backoffMillis(attempt: Int): Long =
         (2_000L shl attempt.coerceAtMost(4)).coerceAtMost(30_000L)
 
@@ -387,10 +391,10 @@ class PagerViewModel(
         val message = error.message.orEmpty()
         return when {
             message.contains("CONFIGURATION_NOT_FOUND", ignoreCase = true) ->
-                "Anonymous sign-in is not enabled in Firebase Auth."
+                str(R.string.err_auth_disabled)
             message.contains("UNAVAILABLE", ignoreCase = true) ||
                 message.contains("network", ignoreCase = true) ->
-                "No connection. Check your internet and try again."
+                str(R.string.err_offline)
             message.isNotBlank() -> message
             else -> fallback
         }

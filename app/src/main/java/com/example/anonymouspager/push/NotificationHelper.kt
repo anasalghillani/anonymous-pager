@@ -8,6 +8,7 @@ import android.media.AudioAttributes
 import android.media.RingtoneManager
 import android.os.Build
 import com.example.anonymouspager.MainActivity
+import com.example.anonymouspager.R
 
 object NotificationHelper {
     const val RING_CHANNEL_ID = "rings"
@@ -30,10 +31,10 @@ object NotificationHelper {
         val manager = context.getSystemService(NotificationManager::class.java)
         val channel = NotificationChannel(
             RING_CHANNEL_ID,
-            "Rings",
+            context.getString(R.string.channel_rings),
             NotificationManager.IMPORTANCE_HIGH
         ).apply {
-            description = "Private pager alerts"
+            description = context.getString(R.string.channel_rings_desc)
             enableVibration(true)
         }
         manager.createNotificationChannel(channel)
@@ -41,10 +42,10 @@ object NotificationHelper {
         // Super rings use the alarm sound and alarm audio usage so they are hard to miss when the app is closed.
         val superChannel = NotificationChannel(
             SUPER_RING_CHANNEL_ID,
-            "Super rings",
+            context.getString(R.string.channel_super),
             NotificationManager.IMPORTANCE_HIGH
         ).apply {
-            description = "Urgent pager alerts"
+            description = context.getString(R.string.channel_super_desc)
             enableVibration(true)
             vibrationPattern = longArrayOf(0, 320, 200, 320, 200, 320)
             setSound(

@@ -46,14 +46,14 @@ class PagerMessagingService : FirebaseMessagingService() {
         val channel = if (superRing) NotificationHelper.SUPER_RING_CHANNEL_ID else NotificationHelper.RING_CHANNEL_ID
         val notification = NotificationCompat.Builder(this, channel)
             .setSmallIcon(R.drawable.ic_notification)
-            .setContentTitle(if (superRing) "Super ring!" else "Someone needs you")
-            .setContentText("Private ring received")
+            .setContentTitle(getString(if (superRing) R.string.notif_super_title else R.string.notif_ring_title))
+            .setContentText(getString(R.string.notif_ring_text))
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setCategory(NotificationCompat.CATEGORY_CALL)
             .setContentIntent(openIntent)
             .setAutoCancel(true)
-            .addAction(0, "Accept", acceptIntent)
-            .addAction(0, "Ignore", ignoreIntent)
+            .addAction(0, getString(R.string.accept), acceptIntent)
+            .addAction(0, getString(R.string.ignore), ignoreIntent)
             .build()
 
         NotificationManagerCompat.from(this).notify(notificationId, notification)
@@ -62,7 +62,7 @@ class PagerMessagingService : FirebaseMessagingService() {
     private fun showResponse(message: RemoteMessage) {
         val receiptId = message.data["receiptId"].orEmpty()
         val response = message.data["response"].orEmpty()
-        val title = if (response == "accepted") "Ring accepted" else "Ring ignored"
+        val title = getString(if (response == "accepted") R.string.ring_accepted else R.string.ring_ignored)
         val notificationId = "response:$receiptId".hashCode()
         val openIntent = PendingIntent.getActivity(
             this,
@@ -73,7 +73,7 @@ class PagerMessagingService : FirebaseMessagingService() {
         val notification = NotificationCompat.Builder(this, NotificationHelper.RING_CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(title)
-            .setContentText("Private response received")
+            .setContentText(getString(R.string.notif_response_text))
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)
             .setContentIntent(openIntent)
             .setAutoCancel(true)

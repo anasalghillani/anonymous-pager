@@ -1,0 +1,139 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">وين</string>
+
+    <!-- Home -->
+    <string name="home_headline">رنّ على أي شخص بدون ما تشارك رقمك.</string>
+    <string name="home_subline">بدون أسماء ولا أرقام. مجرد رنّة خاصة.</string>
+    <string name="home_ring_title">رنّ على أحد</string>
+    <string name="home_ring_body">رنّ على اتصال محفوظ أو أضف اتصالًا جديدًا</string>
+    <string name="home_receive_title">استقبل رنّة</string>
+    <string name="home_receive_body">اعرض رمزًا لمرة واحدة ليضيفك شخص</string>
+    <string name="home_privacy">ربط مجهول الهوية. تنتهي صلاحية الرموز بعد 10 دقائق.</string>
+    <string name="lcd_ready">جاهز</string>
+    <string name="lcd_links">اتصالات %1$d</string>
+
+    <!-- Common -->
+    <string name="back">رجوع</string>
+    <string name="more_options">خيارات أخرى</string>
+    <string name="ring">رنّ</string>
+    <string name="super_ring">رنّة عاجلة</string>
+    <string name="block">حظر</string>
+    <string name="unblock">إلغاء الحظر</string>
+    <string name="delete">حذف</string>
+    <string name="cancel">إلغاء</string>
+    <string name="done">تم</string>
+    <string name="add">إضافة</string>
+    <string name="connection_name">اتصال %1$s</string>
+    <string name="this_connection">هذا الاتصال</string>
+
+    <!-- Ring someone -->
+    <string name="ring_title">رنّ على أحد</string>
+    <string name="section_connections">اتصالاتك</string>
+    <string name="section_blocked">المحظورة</string>
+    <string name="never_rung">لم ترسل أي رنّة بعد</string>
+    <string name="last_ring">%1$s · %2$s · %3$s</string>
+    <string name="kind_ring">رنّة</string>
+    <string name="kind_super">رنّة عاجلة</string>
+    <string name="ring_status_accepted">تم القبول</string>
+    <string name="ring_status_ignored">تم التجاهل</string>
+    <string name="ring_status_no_answer">لا يوجد رد</string>
+    <string name="ring_status_waiting">بانتظار الرد…</string>
+    <string name="blocked_by_me">أنت حظرت هذا الاتصال</string>
+    <string name="blocked_by_them">هذا الاتصال محظور</string>
+    <string name="empty_connections_title">لا توجد اتصالات بعد</string>
+    <string name="empty_connections_body">اطلب من صديقك فتح «استقبل رنّة» وعرض رمزه، ثم امسحه بالأسفل للاتصال.</string>
+    <string name="add_title">أضف اتصالًا</string>
+    <string name="scan_qr">امسح رمز QR</string>
+    <string name="or_enter_pin">أو أدخل الرمز يدويًا</string>
+    <string name="pin_label">الرمز</string>
+
+    <!-- Be ringed -->
+    <string name="be_ringed_title">استقبل رنّة</string>
+    <string name="code_hint">دع صديقك يمسح هذا الرمز، أو أخبره بالرقم السري.</string>
+    <string name="code_expires_in">ينتهي خلال %1$s</string>
+    <string name="code_expired">انتهت صلاحية الرمز</string>
+    <string name="new_code">رمز جديد</string>
+    <string name="get_code">احصل على رمز</string>
+    <string name="no_code_title">لا يوجد رمز حاليًا</string>
+    <string name="no_code_body">أنشئ رمزًا لمرة واحدة ليمسحه صديقك.</string>
+    <string name="connected_title">تم الاتصال!</string>
+    <string name="connected_body">يستطيع %1$s الرنّ عليك الآن، وتستطيع الرنّ عليه أيضًا.</string>
+    <string name="how_title">كيف يعمل</string>
+    <string name="how_1">اعرض هذا الرمز لصديقك.</string>
+    <string name="how_2">يمسحه من «رنّ على أحد».</string>
+    <string name="how_3">تستطيعان الرنّ على بعض بدون مشاركة الأرقام.</string>
+    <string name="section_senders">من يستطيع الرنّ عليك</string>
+    <string name="empty_senders">لا أحد بعد. سيظهر هنا كل من يمسح رمزك.</string>
+    <string name="can_ring_you">يستطيع الرنّ عليك</string>
+    <string name="qr_description">رمز QR للربط</string>
+
+    <!-- Scanner -->
+    <string name="scan_title">مسح QR</string>
+    <string name="scan_hint">وجّه الكاميرا نحو رمز QR على هاتف صديقك.</string>
+    <string name="camera_title">نحتاج الكاميرا</string>
+    <string name="camera_body">يستخدم وين الكاميرا فقط لمسح رموز الربط. لا يتم تسجيل أي شيء.</string>
+    <string name="allow_camera">السماح بالكاميرا</string>
+    <string name="camera_denied">تم رفض إذن الكاميرا</string>
+    <string name="camera_error">تعذّر تشغيل الكاميرا</string>
+
+    <!-- Incoming ring -->
+    <string name="incoming_ring">رنّة واردة</string>
+    <string name="incoming_super">رنّة عاجلة!</string>
+    <string name="incoming_from">%1$s يرنّ عليك</string>
+    <string name="rings_count">عدد الرنّات: %1$d</string>
+    <string name="more_waiting">آخرون بالانتظار: %1$d</string>
+    <string name="accept">قبول</string>
+    <string name="ignore">تجاهل</string>
+
+    <!-- Confirm -->
+    <string name="confirm_block_title">حظر %1$s؟</string>
+    <string name="confirm_block_body">ستتوقف الرنّات على هذا الاتصال. يمكنك إلغاء الحظر لاحقًا.</string>
+    <string name="confirm_delete_title">حذف %1$s؟</string>
+    <string name="confirm_delete_body">سيُحذف هذا الاتصال، وستحتاج رمزًا جديدًا للربط مرة أخرى.</string>
+
+    <!-- Notifications banner -->
+    <string name="notifications_off">الإشعارات متوقفة. لن تسمع الرنّات عندما يكون وين مغلقًا.</string>
+    <string name="later">لاحقًا</string>
+    <string name="enable">تفعيل</string>
+
+    <!-- Status messages -->
+    <string name="sending_ring">جارٍ إرسال الرنّة…</string>
+    <string name="sending_super">جارٍ إرسال الرنّة العاجلة…</string>
+    <string name="ring_sent">تم إرسال الرنّة</string>
+    <string name="super_sent">تم إرسال الرنّة العاجلة</string>
+    <string name="connection_deleted">تم حذف الاتصال</string>
+    <string name="connection_blocked">تم حظر الاتصال</string>
+    <string name="connection_unblocked">تم إلغاء حظر الاتصال</string>
+    <string name="ring_accepted">تم قبول الرنّة</string>
+    <string name="ring_ignored">تم تجاهل الرنّة</string>
+    <string name="enter_pin_or_scan">أدخل الرمز أو امسح رمز QR</string>
+    <string name="connection_saved">تم حفظ الاتصال</string>
+    <string name="err_start">تعذّر بدء الجلسة الخاصة</string>
+    <string name="err_create_code">تعذّر إنشاء رمز</string>
+    <string name="err_save_connection">تعذّر حفظ الاتصال</string>
+    <string name="err_load_connections">تعذّر تحميل الاتصالات</string>
+    <string name="err_load_incoming">تعذّر تحميل الاتصالات الواردة</string>
+    <string name="err_load_rings">تعذّر تحميل الرنّات</string>
+    <string name="err_auth_disabled">تسجيل الدخول المجهول غير مفعّل في Firebase Auth.</string>
+    <string name="err_offline">لا يوجد اتصال بالإنترنت. تحقق وحاول مرة أخرى.</string>
+    <string name="err_send_ring">تعذّر إرسال الرنّة</string>
+    <string name="err_delete">تعذّر حذف الاتصال</string>
+    <string name="err_block">تعذّر حظر الاتصال</string>
+    <string name="err_unblock">تعذّر إلغاء حظر الاتصال</string>
+    <string name="err_respond">تعذّر إرسال الرد</string>
+    <string name="err_generic">حدث خطأ ما</string>
+    <string name="err_firebase_missing">إعداد Firebase غير موجود. أضف الملف app/google-services.json ثم أعد البناء والتثبيت.</string>
+
+    <!-- System notifications -->
+    <string name="channel_rings">الرنّات</string>
+    <string name="channel_rings_desc">تنبيهات خاصة</string>
+    <string name="channel_super">الرنّات العاجلة</string>
+    <string name="channel_super_desc">تنبيهات عاجلة</string>
+    <string name="notif_ring_title">أحدهم يحتاجك</string>
+    <string name="notif_super_title">رنّة عاجلة!</string>
+    <string name="notif_ring_text">وصلتك رنّة خاصة</string>
+    <string name="notif_response_text">وصلك رد خاص</string>
+    <string name="notif_answer_failed_title">لم يُرسل الرد</string>
+    <string name="notif_answer_failed_text">افتح وين للرد على الرنّة</string>
+</resources>
