@@ -20,3 +20,6 @@ functions/node_modules/
 firebase-debug.log
 firestore-debug.log
 ui-debug.log
+
+# Your own Firebase project alias (create with: firebase use --add)
+.firebaserc
