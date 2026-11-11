@@ -1,6 +1,8 @@
 package com.example.anonymouspager.data
 
 import android.content.Context
+import androidx.annotation.StringRes
+import com.example.anonymouspager.R
 import com.google.firebase.FirebaseApp
 import com.google.firebase.Timestamp
 import com.google.firebase.auth.FirebaseAuth
@@ -19,7 +21,6 @@ import kotlinx.coroutines.tasks.await
  * Every write goes through Cloud Functions, which enforce ownership, blocking and rate limits.
  */
 class PagerRepository(context: Context) {
-    @Suppress("unused")
     private val appContext = context.applicationContext
     private val auth: FirebaseAuth by lazy { FirebaseAuth.getInstance() }
     private val firestore: FirebaseFirestore by lazy { FirebaseFirestore.getInstance() }
@@ -67,21 +68,21 @@ class PagerRepository(context: Context) {
     }
 
     suspend fun sendRing(pairId: String, superRing: Boolean = false): PagerResult =
-        result("Could not send ring") {
+        result(R.string.err_send_ring) {
             call("sendRing", mapOf("pairId" to pairId, "superRing" to superRing))
         }
 
     suspend fun deletePair(pairId: String): PagerResult =
-        result("Could not delete connection") { call("deletePair", mapOf("pairId" to pairId)) }
+        result(R.string.err_delete) { call("deletePair", mapOf("pairId" to pairId)) }
 
     suspend fun blockPair(pairId: String): PagerResult =
-        result("Could not block connection") { call("blockPair", mapOf("pairId" to pairId)) }
+        result(R.string.err_block) { call("blockPair", mapOf("pairId" to pairId)) }
 
     suspend fun unblockPair(pairId: String): PagerResult =
-        result("Could not unblock connection") { call("unblockPair", mapOf("pairId" to pairId)) }
+        result(R.string.err_unblock) { call("unblockPair", mapOf("pairId" to pairId)) }
 
     suspend fun respondToRing(receiptId: String, response: String): PagerResult =
-        result("Could not respond") {
+        result(R.string.err_respond) {
             call("respondToRing", mapOf("receiptId" to receiptId, "response" to response))
         }
 
@@ -191,24 +192,29 @@ class PagerRepository(context: Context) {
             functions.getHttpsCallable(name).call(data).await()
         } catch (error: FirebaseFunctionsException) {
             // Server messages are written for users ("Code has expired.", "Too many rings...").
-            throw IllegalStateException(error.message ?: "Something went wrong", error)
+            val message = error.message?.let { serverMessage(it) } ?: appContext.getString(R.string.err_generic)
+            throw IllegalStateException(message, error)
         }
         return result.getData() as? Map<String, Any?> ?: emptyMap()
     }
 
-    private suspend fun result(fallback: String, block: suspend () -> Unit): PagerResult =
+    private suspend fun result(@StringRes fallback: Int, block: suspend () -> Unit): PagerResult =
         runCatching {
             ensureSignedIn()
             block()
             PagerResult.Ok
-        }.getOrElse { error -> PagerResult.Error(error.message ?: fallback) }
+        }.getOrElse { error -> PagerResult.Error(error.message ?: appContext.getString(fallback)) }
+
+    /** Server messages are English; show the app's translation when we know the message. */
+    private fun serverMessage(message: String): String =
+        SERVER_MESSAGES[message.trim()]?.let(appContext::getString) ?: message
 
     private fun isFirebaseConfigured(): Boolean =
         runCatching { FirebaseApp.getInstance() }.isSuccess
 
     private fun requireFirebaseConfigured() {
         if (!isFirebaseConfigured()) {
-            throw MissingFirebaseConfigException()
+            throw MissingFirebaseConfigException(appContext.getString(R.string.err_firebase_missing))
         }
     }
 
@@ -216,9 +222,28 @@ class PagerRepository(context: Context) {
 
     private companion object {
         const val REGION = "us-central1"
+
+        /** Keep in sync with the HttpsError messages in functions/src/index.ts. */
+        val SERVER_MESSAGES = mapOf(
+            "Anonymous sign-in is required." to R.string.srv_signin_required,
+            "Could not create a temporary code." to R.string.srv_code_unavailable,
+            "Enter a valid six digit code or QR payload." to R.string.srv_bad_code,
+            "Code not found." to R.string.srv_code_not_found,
+            "Code is invalid." to R.string.srv_code_invalid,
+            "You cannot pair with your own code." to R.string.srv_own_code,
+            "Code has expired." to R.string.srv_code_expired,
+            "You can't connect with this person." to R.string.srv_cannot_connect,
+            "Connection not found." to R.string.srv_connection_not_found,
+            "Connection cannot be ringed." to R.string.srv_cannot_ring,
+            "This connection is blocked." to R.string.srv_blocked,
+            "Too many rings. Try again later." to R.string.srv_too_many_rings,
+            "Ring receipt not found." to R.string.srv_ring_not_found,
+            "Only the receiver can respond." to R.string.srv_only_receiver,
+            "Connection cannot be deleted." to R.string.srv_cannot_delete,
+            "Connection cannot be blocked." to R.string.srv_cannot_block,
+            "Only the person who blocked can unblock." to R.string.srv_only_blocker
+        )
     }
 }
 
-class MissingFirebaseConfigException : IllegalStateException(
-    "Firebase setup is missing. Add app/google-services.json from your Firebase project, then rebuild and reinstall."
-)
+class MissingFirebaseConfigException(message: String) : IllegalStateException(message)

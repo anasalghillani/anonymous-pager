@@ -1,8 +1,10 @@
 <resources>
-    <style name="Theme.AnonymousPager" parent="android:style/Theme.Material.Light.NoActionBar">
-        <item name="android:fontFamily">sans</item>
-        <item name="android:windowLightStatusBar">true</item>
-        <item name="android:statusBarColor">#F8FAFC</item>
-        <item name="android:navigationBarColor">#F8FAFC</item>
+    <!-- Dark window so there is no white flash before Compose draws; Compose owns the rest of the styling. -->
+    <style name="Theme.AnonymousPager" parent="android:style/Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/wen_night</item>
+        <item name="android:colorBackground">@color/wen_night</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:statusBarColor">@color/wen_night</item>
+        <item name="android:navigationBarColor">@color/wen_night</item>
     </style>
 </resources>

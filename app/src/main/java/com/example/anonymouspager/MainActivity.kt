@@ -6,23 +6,25 @@ import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
 import androidx.activity.ComponentActivity
+import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.WindowInsetsSides
-import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.safeDrawing
-import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -34,11 +36,13 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.core.app.NotificationManagerCompat
 import com.example.anonymouspager.ui.PagerApp
 import com.example.anonymouspager.ui.PagerViewModel
+import com.example.anonymouspager.ui.theme.Space
+import com.example.anonymouspager.ui.theme.WenColors
 
 class MainActivity : ComponentActivity() {
     private val viewModel: PagerViewModel by viewModels()
@@ -52,6 +56,10 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        enableEdgeToEdge(
+            statusBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT),
+            navigationBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT)
+        )
         setContent {
             LaunchedEffect(Unit) {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -59,16 +67,14 @@ class MainActivity : ComponentActivity() {
                 }
             }
             var dismissed by remember { mutableStateOf(false) }
-            Box(Modifier.fillMaxSize()) {
-                PagerApp(viewModel = viewModel)
-                if (!notificationsEnabled && !dismissed) {
-                    NotificationsOffBanner(
-                        onEnable = ::enableNotifications,
-                        onDismiss = { dismissed = true },
-                        modifier = Modifier.align(Alignment.BottomCenter)
-                    )
+            PagerApp(
+                viewModel = viewModel,
+                bottomBanner = {
+                    if (!notificationsEnabled && !dismissed) {
+                        NotificationsOffBanner(onEnable = ::enableNotifications, onDismiss = { dismissed = true })
+                    }
                 }
-            }
+            )
         }
     }
 
@@ -106,30 +112,30 @@ private fun NotificationsOffBanner(
     Surface(
         modifier = modifier
             .fillMaxWidth()
-            .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom + WindowInsetsSides.Horizontal))
-            .padding(12.dp),
-        shape = RoundedCornerShape(12.dp),
-        color = Color(0xFF2A2620),
-        contentColor = Color(0xFFF2E9C9),
-        shadowElevation = 6.dp
+            .padding(start = Space.screen, end = Space.screen, bottom = Space.lg),
+        shape = RoundedCornerShape(16.dp),
+        color = WenColors.EmberSoft,
+        contentColor = WenColors.Text,
+        border = BorderStroke(1.dp, WenColors.Ember.copy(alpha = 0.5f))
     ) {
-        Row(
-            modifier = Modifier.padding(start = 16.dp, end = 8.dp, top = 8.dp, bottom = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            Text(
-                "Notifications are off. You won't hear rings when Wen is closed.",
-                modifier = Modifier.weight(1f)
-            )
-            TextButton(onClick = onDismiss) { Text("Later", color = Color(0xFFC8B36A)) }
-            Button(
-                onClick = onEnable,
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = Color(0xFFC8B36A),
-                    contentColor = Color(0xFF12110E)
+        Column(Modifier.padding(start = Space.lg, end = Space.sm, top = Space.md, bottom = Space.xs)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Filled.Notifications, contentDescription = null, tint = WenColors.Ember, modifier = Modifier.size(20.dp))
+                Spacer(Modifier.width(Space.md))
+                Text(
+                    stringResource(R.string.notifications_off),
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.weight(1f)
                 )
-            ) { Text("Enable") }
+            }
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                TextButton(onClick = onDismiss) {
+                    Text(stringResource(R.string.later), color = WenColors.TextMuted)
+                }
+                TextButton(onClick = onEnable) {
+                    Text(stringResource(R.string.enable), color = WenColors.Ember, style = MaterialTheme.typography.labelLarge)
+                }
+            }
         }
     }
 }

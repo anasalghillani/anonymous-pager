@@ -26,20 +26,7 @@ data class LastRing(
     val superRing: Boolean,
     val sentAtMillis: Long,
     val expiresAtMillis: Long
-) {
-    /** Short LCD label, e.g. "LAST RING 21:40 ACCEPTED". */
-    fun label(nowMillis: Long = System.currentTimeMillis()): String {
-        val state = when {
-            status == "accepted" -> "ACCEPTED"
-            status == "ignored" -> "IGNORED"
-            expiresAtMillis in 1..nowMillis -> "NO ANSWER"
-            else -> "WAITING..."
-        }
-        val time = java.text.SimpleDateFormat("HH:mm", java.util.Locale.US).format(java.util.Date(sentAtMillis))
-        val kind = if (superRing) "SUPER" else "RING"
-        return "LAST $kind $time $state"
-    }
-}
+)
 
 /** Short display tag for a connection, shared by pair cards and the incoming ring screen. */
 fun pairTag(pairId: String): String =

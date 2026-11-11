@@ -2,40 +2,54 @@ package com.example.anonymouspager.ui
 
 import android.Manifest
 import android.content.pm.PackageManager
+import android.text.format.DateFormat
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.BorderStroke
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.safeDrawing
-import androidx.compose.foundation.layout.windowInsetsPadding
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
@@ -52,12 +66,15 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -65,27 +82,27 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.repeatOnLifecycle
+import com.example.anonymouspager.R
+import com.example.anonymouspager.data.LastRing
+import com.example.anonymouspager.data.PagerCode
 import com.example.anonymouspager.data.PagerPair
-import com.example.anonymouspager.data.PagerRing
-import com.example.anonymouspager.data.pairTag
+import com.example.anonymouspager.ui.theme.Space
+import com.example.anonymouspager.ui.theme.WenColors
+import com.example.anonymouspager.ui.theme.WenTheme
+import com.example.anonymouspager.ui.theme.WenType
 import kotlinx.coroutines.delay
-
-private val PagerBlack = Color(0xFF12110E)
-private val PagerBody = Color(0xFF1F1D18)
-private val PagerEdge = Color(0xFF090806)
-private val PagerGold = Color(0xFFC8B36A)
-private val PagerRed = Color(0xFFB6312C)
-private val PagerGreenButton = Color(0xFFCDD34D)
-private val LcdGreen = Color(0xFF9FBE9F)
-private val LcdDark = Color(0xFF172015)
-private val LcdMuted = Color(0xFF40523A)
-private val Mono = FontFamily.Monospace
+import java.util.Date
 
 /** A destructive action waiting for the user to confirm it in a dialog. */
 private data class PendingConfirm(val pairId: String, val tag: String, val block: Boolean)
 
+private const val CODE_LIFETIME_SECONDS = 10 * 60
+
 @Composable
-fun PagerApp(viewModel: PagerViewModel) {
+fun PagerApp(
+    viewModel: PagerViewModel,
+    bottomBanner: @Composable () -> Unit = {}
+) {
     val state by viewModel.uiState.collectAsState()
     var pendingConfirm by remember { mutableStateOf<PendingConfirm?>(null) }
 
@@ -97,26 +114,23 @@ fun PagerApp(viewModel: PagerViewModel) {
     }
     val confirmDelete = { pairId: String -> pendingConfirm = PendingConfirm(pairId, tagFor(pairId), block = false) }
     val confirmBlock = { pairId: String -> pendingConfirm = PendingConfirm(pairId, tagFor(pairId), block = true) }
-    MaterialTheme(
-        colorScheme = MaterialTheme.colorScheme.copy(
-            primary = PagerGold,
-            secondary = PagerGreenButton,
-            background = PagerBlack,
-            surface = PagerBody
-        )
-    ) {
-        Surface(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(PagerBlack),
-            color = PagerBlack
-        ) {
+
+    WenTheme {
+        Surface(Modifier.fillMaxSize(), color = WenColors.Night) {
             Box(Modifier.fillMaxSize()) {
-                PagerDeviceFrame {
-                    Box(Modifier.fillMaxSize()) {
-                        when (state.screen) {
+                Box(
+                    Modifier
+                        .fillMaxSize()
+                        .windowInsetsPadding(WindowInsets.safeDrawing)
+                ) {
+                    AnimatedContent(
+                        targetState = state.screen,
+                        transitionSpec = { fadeIn(tween(220)) togetherWith fadeOut(tween(150)) },
+                        label = "screen"
+                    ) { screen ->
+                        when (screen) {
                             PagerScreen.Home -> HomeScreen(
-                                status = state.status,
+                                state = state,
                                 onRing = viewModel::openRing,
                                 onBeRinged = viewModel::openBeRinged
                             )
@@ -144,34 +158,40 @@ fun PagerApp(viewModel: PagerViewModel) {
                                 onUnblock = viewModel::unblockPair
                             )
 
-                            PagerScreen.Scanner -> ScannerPermissionScreen(
+                            PagerScreen.Scanner -> ScannerScreen(
                                 onBack = viewModel::openRing,
                                 onScanned = viewModel::redeemScannedCode
                             )
                         }
+                    }
 
-                        if (state.loading) {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .background(Color(0x99000000)),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                CircularProgressIndicator(color = PagerGold)
-                            }
+                    Column(Modifier.align(Alignment.BottomCenter)) {
+                        StatusToast(state.status)
+                        bottomBanner()
+                    }
+
+                    if (state.loading) {
+                        Box(
+                            Modifier
+                                .fillMaxSize()
+                                .background(WenColors.Night.copy(alpha = 0.72f))
+                                .consumeTaps(),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            CircularProgressIndicator(color = WenColors.Lcd, strokeWidth = 3.dp)
                         }
                     }
+                }
 
-                    pendingConfirm?.let { pending ->
-                        ConfirmDialog(
-                            pending = pending,
-                            onConfirm = {
-                                pendingConfirm = null
-                                if (pending.block) viewModel.blockPair(pending.pairId) else viewModel.deletePair(pending.pairId)
-                            },
-                            onDismiss = { pendingConfirm = null }
-                        )
-                    }
+                pendingConfirm?.let { pending ->
+                    ConfirmDialog(
+                        pending = pending,
+                        onConfirm = {
+                            pendingConfirm = null
+                            if (pending.block) viewModel.blockPair(pending.pairId) else viewModel.deletePair(pending.pairId)
+                        },
+                        onDismiss = { pendingConfirm = null }
+                    )
                 }
 
                 // Covers the whole window on every screen, so a ring can be answered wherever the user is.
@@ -184,131 +204,82 @@ fun PagerApp(viewModel: PagerViewModel) {
     }
 }
 
-@Composable
-private fun PagerDeviceFrame(content: @Composable () -> Unit) {
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(PagerBlack)
-            .windowInsetsPadding(WindowInsets.safeDrawing)
-            .padding(14.dp),
-        contentAlignment = Alignment.Center
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .clip(RoundedCornerShape(22.dp))
-                .background(
-                    Brush.verticalGradient(
-                        listOf(Color(0xFF2B2923), PagerBody, PagerEdge)
-                    )
-                )
-                .border(2.dp, Color(0xFF3B372F), RoundedCornerShape(22.dp))
-                .padding(16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f)
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(LcdGreen)
-                    .border(3.dp, Color(0xFF050605), RoundedCornerShape(12.dp))
-                    .padding(16.dp)
-            ) {
-                content()
-            }
-            Spacer(Modifier.height(18.dp))
-            PagerControls()
-        }
-    }
-}
+/* ---------- Home ---------- */
 
 @Composable
-private fun PagerControls() {
-    Column(Modifier.fillMaxWidth()) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                IndicatorButton(PagerGreenButton)
-                IndicatorButton(PagerRed)
+private fun HomeScreen(state: PagerUiState, onRing: () -> Unit, onBeRinged: () -> Unit) {
+    val links = state.pairs.count { !it.blocked }
+    Column(
+        Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = Space.screen)
+            .padding(top = Space.xxl, bottom = 120.dp)
+    ) {
+        Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+            PagerDevice(width = 248.dp) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(
+                        "وين؟",
+                        color = WenColors.LcdInk,
+                        fontSize = 44.sp,
+                        lineHeight = 48.sp,
+                        fontWeight = FontWeight.Black
+                    )
+                    Text(
+                        if (links == 0) stringResource(R.string.lcd_ready) else stringResource(R.string.lcd_links, links),
+                        style = WenType.Readout,
+                        color = WenColors.LcdInk.copy(alpha = 0.65f)
+                    )
+                }
             }
+        }
+
+        Spacer(Modifier.height(Space.xxl))
+        Text(stringResource(R.string.home_headline), style = MaterialTheme.typography.headlineMedium)
+        Spacer(Modifier.height(Space.sm))
+        Text(
+            stringResource(R.string.home_subline),
+            style = MaterialTheme.typography.bodyLarge,
+            color = WenColors.TextMuted
+        )
+
+        Spacer(Modifier.height(Space.xl))
+        ActionTile(
+            title = stringResource(R.string.home_ring_title),
+            body = stringResource(R.string.home_ring_body),
+            onClick = onRing,
+            highlighted = true,
+            leading = { Icon(Icons.Filled.Notifications, contentDescription = null) }
+        )
+        Spacer(Modifier.height(Space.md))
+        ActionTile(
+            title = stringResource(R.string.home_receive_title),
+            body = stringResource(R.string.home_receive_body),
+            onClick = onBeRinged,
+            highlighted = false,
+            leading = { QrGlyph(Modifier.size(22.dp), color = WenColors.Lcd) }
+        )
+
+        Spacer(Modifier.height(Space.xl))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(
+                Icons.Filled.Lock,
+                contentDescription = null,
+                tint = WenColors.TextFaint,
+                modifier = Modifier.size(16.dp)
+            )
+            Spacer(Modifier.width(Space.sm))
             Text(
-                "WEN\nوين",
-                color = PagerGold,
-                fontFamily = Mono,
-                fontWeight = FontWeight.Bold,
-                fontSize = 18.sp,
-                lineHeight = 18.sp,
-                textAlign = TextAlign.Right
+                stringResource(R.string.home_privacy),
+                style = MaterialTheme.typography.bodyMedium,
+                color = WenColors.TextFaint
             )
         }
-        Spacer(Modifier.height(14.dp))
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.End,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            RoundNavButton("<")
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                RoundNavButton("^", wide = true)
-                Spacer(Modifier.height(6.dp))
-                RoundNavButton("v", wide = true)
-            }
-            RoundNavButton(">")
-        }
     }
 }
 
-@Composable
-private fun IndicatorButton(color: Color) {
-    Box(
-        modifier = Modifier
-            .size(width = 74.dp, height = 32.dp)
-            .clip(RoundedCornerShape(8.dp))
-            .background(Color(0xFF12110E))
-            .border(1.dp, Color(0xFF302D25), RoundedCornerShape(8.dp)),
-        contentAlignment = Alignment.Center
-    ) {
-        Box(
-            modifier = Modifier
-                .size(width = 34.dp, height = 8.dp)
-                .clip(RoundedCornerShape(5.dp))
-                .background(color)
-        )
-    }
-}
-
-@Composable
-private fun RoundNavButton(label: String, wide: Boolean = false) {
-    Box(
-        modifier = Modifier
-            .size(width = if (wide) 96.dp else 58.dp, height = 44.dp)
-            .clip(RoundedCornerShape(18.dp))
-            .background(Color(0xFF171511))
-            .border(1.dp, Color(0xFF322E25), RoundedCornerShape(18.dp)),
-        contentAlignment = Alignment.Center
-    ) {
-        Text(label, color = PagerGold, fontSize = 24.sp, fontWeight = FontWeight.Bold)
-    }
-}
-
-@Composable
-private fun HomeScreen(status: String?, onRing: () -> Unit, onBeRinged: () -> Unit) {
-    LcdColumn(scrollable = false, verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
-        LcdTitle("WEN · وين")
-        Spacer(Modifier.height(10.dp))
-        LcdText("NO NAMES / NO NUMBERS\nPRIVATE RING ONLY", textAlign = TextAlign.Center)
-        Spacer(Modifier.height(28.dp))
-        PagerActionButton("01: RING SOMEONE", onClick = onRing)
-        Spacer(Modifier.height(12.dp))
-        PagerSecondaryButton("02: BE RINGED", onClick = onBeRinged)
-        StatusText(status)
-    }
-}
+/* ---------- Be ringed (share my code) ---------- */
 
 @Composable
 private fun BeRingedScreen(
@@ -320,241 +291,122 @@ private fun BeRingedScreen(
     onBlock: (String) -> Unit,
     onUnblock: (String) -> Unit
 ) {
-    LcdColumn {
-        TopBar(title = "BE RINGED", onBack = onBack)
-        Spacer(Modifier.height(12.dp))
+    WenScreen(title = stringResource(R.string.be_ringed_title), onBack = onBack) {
         val code = state.code
         val connectedTag = state.justConnectedTag
-        if (connectedTag != null) {
-            LcdCard {
-                LcdTitle("CONNECTED!", textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
-                LcdText(
-                    "CONN $connectedTag\nYOU CAN NOW RING\nEACH OTHER",
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.fillMaxWidth()
+        when {
+            connectedTag != null -> ConnectedCard(tag = connectedTag, onDone = onBack, onNewCode = onRefresh)
+            code != null -> CodeCard(code = code, onExpired = onCodeExpired, onRefresh = onRefresh)
+            !state.loading -> EmptyState(
+                title = stringResource(R.string.no_code_title),
+                body = stringResource(R.string.no_code_body),
+                lcdText = "----"
+            ) {
+                WenButton(stringResource(R.string.get_code), onClick = onRefresh, icon = Icons.Filled.Refresh)
+            }
+        }
+
+        if (connectedTag == null) {
+            SectionHeader(stringResource(R.string.how_title))
+            StepRow(1, stringResource(R.string.how_1))
+            StepRow(2, stringResource(R.string.how_2))
+            StepRow(3, stringResource(R.string.how_3))
+        }
+
+        val active = state.incomingPairs.filterNot { it.blocked }
+        val blocked = state.incomingPairs.filter { it.blocked }
+        SectionHeader(stringResource(R.string.section_senders), count = active.size)
+        if (active.isEmpty()) {
+            Text(
+                stringResource(R.string.empty_senders),
+                style = MaterialTheme.typography.bodyMedium,
+                color = WenColors.TextFaint
+            )
+        } else {
+            Column(verticalArrangement = Arrangement.spacedBy(Space.sm)) {
+                active.forEach { pair ->
+                    ConnectionCard(
+                        pair = pair,
+                        subtitle = { StatusDot(stringResource(R.string.can_ring_you), WenColors.Lcd) },
+                        onDelete = onDelete,
+                        onBlock = onBlock,
+                        onUnblock = onUnblock
+                    )
+                }
+            }
+        }
+        BlockedSection(blocked, onDelete = onDelete, onBlock = onBlock, onUnblock = onUnblock)
+    }
+}
+
+@Composable
+private fun CodeCard(code: PagerCode, onExpired: () -> Unit, onRefresh: () -> Unit) {
+    WenCard {
+        Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
+            LcdScreen(Modifier.size(236.dp), cornerRadius = 24.dp) {
+                QrCodeImage(
+                    payload = code.qrPayload,
+                    contentDescription = stringResource(R.string.qr_description),
+                    modifier = Modifier.size(204.dp)
                 )
             }
-        } else if (code != null) {
-            PagerQrCode(payload = code.qrPayload, modifier = Modifier.align(Alignment.CenterHorizontally))
-            Spacer(Modifier.height(10.dp))
-            LcdTitle(code.code, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
-            CodeCountdown(expiresAtMillis = code.expiresAtMillis, onExpired = onCodeExpired)
-        }
-        Spacer(Modifier.height(12.dp))
-        PagerSecondaryButton("NEW CODE", onClick = onRefresh)
-        StatusText(state.status)
-        Spacer(Modifier.height(14.dp))
-        val activeSenders = state.incomingPairs.filterNot { it.blocked }
-        val blockedSenders = state.incomingPairs.filter { it.blocked }
-        LcdText("ALLOWED SENDERS")
-        if (activeSenders.isEmpty()) {
-            LcdText("NONE")
-        } else {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                activeSenders.forEach { pair ->
-                    ReceiverPairCard(pair = pair, onDelete = onDelete, onBlock = onBlock)
-                }
-            }
-        }
-        if (blockedSenders.isNotEmpty()) {
-            Spacer(Modifier.height(10.dp))
-            LcdText("BLOCKED SENDERS")
-            blockedSenders.forEach { pair ->
-                ReceiverPairCard(pair = pair, onDelete = onDelete, onBlock = onBlock, onUnblock = onUnblock)
-                Spacer(Modifier.height(8.dp))
-            }
-        }
-    }
-}
-
-@Composable
-private fun RingScreen(
-    state: PagerUiState,
-    onBack: () -> Unit,
-    onCodeChange: (String) -> Unit,
-    onRedeem: () -> Unit,
-    onScan: () -> Unit,
-    onRing: (String) -> Unit,
-    onSuperRing: (String) -> Unit,
-    onDelete: (String) -> Unit,
-    onBlock: (String) -> Unit,
-    onUnblock: (String) -> Unit
-) {
-    LcdColumn {
-        TopBar(title = "RING SOMEONE", onBack = onBack)
-        Spacer(Modifier.height(12.dp))
-        OutlinedTextField(
-            value = state.codeInput,
-            onValueChange = onCodeChange,
-            label = { Text("PIN / QR", fontFamily = Mono) },
-            singleLine = true,
-            textStyle = TextStyle(fontFamily = Mono, color = LcdDark, fontSize = 18.sp),
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedTextColor = LcdDark,
-                unfocusedTextColor = LcdDark,
-                focusedBorderColor = LcdDark,
-                unfocusedBorderColor = LcdMuted,
-                focusedLabelColor = LcdDark,
-                unfocusedLabelColor = LcdMuted,
-                cursorColor = LcdDark
-            ),
-            modifier = Modifier.fillMaxWidth()
-        )
-        Spacer(Modifier.height(10.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            PagerActionButton("SAVE", onClick = onRedeem, modifier = Modifier.weight(1f))
-            PagerSecondaryButton("SCAN", onClick = onScan, modifier = Modifier.weight(1f))
-        }
-        StatusText(state.status)
-        Spacer(Modifier.height(14.dp))
-        val activePairs = state.pairs.filterNot { it.blocked }
-        val blockedPairs = state.pairs.filter { it.blocked }
-        LcdText("SAVED CONNECTIONS")
-        if (activePairs.isEmpty()) {
-            LcdText("NONE")
-        } else {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                activePairs.forEach { pair ->
-                    PairCard(pair = pair, onRing = onRing, onSuperRing = onSuperRing, onDelete = onDelete, onBlock = onBlock, onUnblock = onUnblock)
-                }
-            }
-        }
-        if (blockedPairs.isNotEmpty()) {
-            Spacer(Modifier.height(10.dp))
-            LcdText("BLOCKED CONNECTIONS")
-            blockedPairs.forEach { pair ->
-                PairCard(pair = pair, onRing = onRing, onSuperRing = onSuperRing, onDelete = onDelete, onBlock = onBlock, onUnblock = onUnblock)
-                Spacer(Modifier.height(8.dp))
-            }
-        }
-    }
-}
-
-@Composable
-private fun PairCard(
-    pair: PagerPair,
-    onRing: (String) -> Unit,
-    onSuperRing: (String) -> Unit,
-    onDelete: (String) -> Unit,
-    onBlock: (String) -> Unit,
-    onUnblock: (String) -> Unit
-) {
-    LcdCard(blocked = pair.blocked) {
-        LcdText(if (pair.blocked) "CONN ${pair.tag} [BLOCKED]" else "CONN ${pair.tag}")
-        pair.myLastRing?.let { last ->
-            // Live: updates as soon as the other person taps Accept/Ignore.
-            LcdText(last.label())
-        }
-        Spacer(Modifier.height(8.dp))
-        if (pair.blocked) {
-            BlockedPairActions(
-                onUnblock = if (pair.blockedByMe) ({ onUnblock(pair.id) }) else null,
-                onDelete = { onDelete(pair.id) }
-            )
-        } else {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                PagerActionButton("RING", onClick = { onRing(pair.id) }, modifier = Modifier.weight(1f))
-                PagerSecondaryButton("SUPER", onClick = { onSuperRing(pair.id) }, modifier = Modifier.weight(1f))
-                PagerDangerButton("BLK", onClick = { onBlock(pair.id) }, modifier = Modifier.weight(1f))
-            }
-        }
-    }
-}
-
-@Composable
-private fun ReceiverPairCard(
-    pair: PagerPair,
-    onDelete: (String) -> Unit,
-    onBlock: (String) -> Unit,
-    onUnblock: ((String) -> Unit)? = null
-) {
-    LcdCard(blocked = pair.blocked) {
-        LcdText(if (pair.blocked) "SENDER ${pair.tag} [BLOCKED]" else "SENDER ${pair.tag}")
-        Spacer(Modifier.height(8.dp))
-        if (pair.blocked && onUnblock != null) {
-            BlockedPairActions(
-                onUnblock = if (pair.blockedByMe) ({ onUnblock(pair.id) }) else null,
-                onDelete = { onDelete(pair.id) }
-            )
-        } else {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                PagerSecondaryButton("DEL", onClick = { onDelete(pair.id) }, modifier = Modifier.weight(1f))
-                PagerDangerButton("BLOCK", onClick = { onBlock(pair.id) }, modifier = Modifier.weight(1f))
-            }
-        }
-    }
-}
-
-@Composable
-private fun BlockedPairActions(onUnblock: (() -> Unit)?, onDelete: () -> Unit) {
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        if (onUnblock != null) {
-            PagerActionButton("UNBLOCK", onClick = onUnblock, modifier = Modifier.fillMaxWidth())
-        }
-        PagerSecondaryButton("DELETE", onClick = onDelete, modifier = Modifier.fillMaxWidth())
-    }
-}
-
-/**
- * Full-screen incoming ring. Rings are grouped by connection: one ACCEPT / IGNORE answers
- * every waiting ring from that person. If several people rang, the newest one is shown first.
- */
-@Composable
-private fun IncomingRingOverlay(rings: List<PagerRing>, onRespond: (String, String) -> Unit) {
-    val latest = rings.firstOrNull() ?: return
-    val fromSamePerson = rings.filter { it.pairId == latest.pairId }
-    val superRing = fromSamePerson.any { it.superRing }
-    val otherPeople = rings.map { it.pairId }.distinct().size - 1
-
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(if (superRing) PagerRed else LcdGreen)
-            // Swallow taps so nothing behind the overlay can be pressed by accident.
-            .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null,
-                onClick = {}
-            )
-            .windowInsetsPadding(WindowInsets.safeDrawing)
-            .padding(24.dp),
-        contentAlignment = Alignment.Center
-    ) {
-        Column(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            LcdTitle(
-                if (superRing) "!!! SUPER RING !!!" else "INCOMING RING",
-                modifier = Modifier.fillMaxWidth(),
+            Spacer(Modifier.height(Space.lg))
+            Text(code.code, style = WenType.Code, color = WenColors.Text)
+            Spacer(Modifier.height(Space.xs))
+            Text(
+                stringResource(R.string.code_hint),
+                style = MaterialTheme.typography.bodyMedium,
+                color = WenColors.TextMuted,
                 textAlign = TextAlign.Center
             )
-            LcdText("CONN ${pairTag(latest.pairId)}", modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
-            if (fromSamePerson.size > 1) {
-                LcdText("${fromSamePerson.size} RINGS", modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
+            Spacer(Modifier.height(Space.lg))
+            CodeCountdown(expiresAtMillis = code.expiresAtMillis, onExpired = onExpired)
+            Spacer(Modifier.height(Space.md))
+            WenButton(
+                stringResource(R.string.new_code),
+                onClick = onRefresh,
+                style = WenButtonStyle.Tonal,
+                icon = Icons.Filled.Refresh,
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
+    }
+}
+
+@Composable
+private fun ConnectedCard(tag: String, onDone: () -> Unit, onNewCode: () -> Unit) {
+    WenCard(border = WenColors.Lcd.copy(alpha = 0.4f)) {
+        Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
+            Spacer(Modifier.height(Space.sm))
+            LcdScreen(Modifier.size(76.dp), cornerRadius = 38.dp) {
+                Icon(Icons.Filled.Check, contentDescription = null, tint = WenColors.LcdInk, modifier = Modifier.size(40.dp))
             }
-            Spacer(Modifier.height(12.dp))
-            PagerActionButton(
-                "ACCEPT",
-                onClick = { onRespond(latest.pairId, "accepted") },
-                modifier = Modifier.fillMaxWidth()
+            Spacer(Modifier.height(Space.lg))
+            Text(stringResource(R.string.connected_title), style = MaterialTheme.typography.headlineSmall)
+            Spacer(Modifier.height(Space.xs))
+            Text(
+                stringResource(R.string.connected_body, stringResource(R.string.connection_name, tag)),
+                style = MaterialTheme.typography.bodyMedium,
+                color = WenColors.TextMuted,
+                textAlign = TextAlign.Center
             )
-            PagerDangerButton(
-                "IGNORE",
-                onClick = { onRespond(latest.pairId, "ignored") },
-                modifier = Modifier.fillMaxWidth()
-            )
-            if (otherPeople > 0) {
-                LcdText("+$otherPeople MORE WAITING", modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
+            Spacer(Modifier.height(Space.xl))
+            Row(horizontalArrangement = Arrangement.spacedBy(Space.md)) {
+                WenButton(
+                    stringResource(R.string.new_code),
+                    onClick = onNewCode,
+                    style = WenButtonStyle.Tonal,
+                    modifier = Modifier.weight(1f)
+                )
+                WenButton(stringResource(R.string.done), onClick = onDone, modifier = Modifier.weight(1f))
             }
         }
     }
 }
 
 /**
- * Live "EXPIRES IN m:ss" line; calls [onExpired] when it reaches zero. Only ticks while the
- * app is visible, so a phone left on this screen in the background doesn't keep making codes.
+ * Live "Expires in m:ss" line with a draining bar; calls [onExpired] when it reaches zero. Only
+ * ticks while the app is visible, so a phone left on this screen in the background doesn't keep making codes.
  */
 @Composable
 private fun CodeCountdown(expiresAtMillis: Long, onExpired: () -> Unit) {
@@ -573,227 +425,414 @@ private fun CodeCountdown(expiresAtMillis: Long, onExpired: () -> Unit) {
         }
     }
     val secondsLeft = ((expiresAtMillis - now + 999L) / 1_000L).coerceAtLeast(0L)
-    LcdText(
-        if (secondsLeft > 0) "EXPIRES IN %d:%02d".format(secondsLeft / 60, secondsLeft % 60) else "CODE EXPIRED",
-        textAlign = TextAlign.Center,
-        modifier = Modifier.fillMaxWidth()
-    )
+    val urgent = secondsLeft < 60
+    val barColor = if (urgent) WenColors.Ember else WenColors.Lcd
+    Column(Modifier.fillMaxWidth()) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
+            Text(
+                if (secondsLeft > 0) {
+                    stringResource(R.string.code_expires_in, "%d:%02d".format(secondsLeft / 60, secondsLeft % 60))
+                } else {
+                    stringResource(R.string.code_expired)
+                },
+                style = MaterialTheme.typography.bodyMedium,
+                color = if (urgent) WenColors.Ember else WenColors.TextMuted
+            )
+        }
+        Spacer(Modifier.height(Space.sm))
+        LinearProgressIndicator(
+            progress = { (secondsLeft.toFloat() / CODE_LIFETIME_SECONDS).coerceIn(0f, 1f) },
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(6.dp)
+                .clip(RoundedCornerShape(3.dp)),
+            color = barColor,
+            trackColor = WenColors.SurfaceHigh,
+            strokeCap = StrokeCap.Round
+        )
+    }
+}
+
+/* ---------- Ring someone ---------- */
+
+@Composable
+private fun RingScreen(
+    state: PagerUiState,
+    onBack: () -> Unit,
+    onCodeChange: (String) -> Unit,
+    onRedeem: () -> Unit,
+    onScan: () -> Unit,
+    onRing: (String) -> Unit,
+    onSuperRing: (String) -> Unit,
+    onDelete: (String) -> Unit,
+    onBlock: (String) -> Unit,
+    onUnblock: (String) -> Unit
+) {
+    WenScreen(title = stringResource(R.string.ring_title), onBack = onBack) {
+        val active = state.pairs.filterNot { it.blocked }
+        val blocked = state.pairs.filter { it.blocked }
+
+        if (active.isEmpty()) {
+            EmptyState(
+                title = stringResource(R.string.empty_connections_title),
+                body = stringResource(R.string.empty_connections_body)
+            )
+        } else {
+            SectionHeader(stringResource(R.string.section_connections), count = active.size, topPadding = 0.dp)
+            Column(verticalArrangement = Arrangement.spacedBy(Space.sm)) {
+                active.forEach { pair ->
+                    ConnectionCard(
+                        pair = pair,
+                        subtitle = { LastRingLine(pair.myLastRing) },
+                        onDelete = onDelete,
+                        onBlock = onBlock,
+                        onUnblock = onUnblock
+                    ) {
+                        Spacer(Modifier.height(Space.md))
+                        Row(horizontalArrangement = Arrangement.spacedBy(Space.sm)) {
+                            WenButton(
+                                stringResource(R.string.ring),
+                                onClick = { onRing(pair.id) },
+                                icon = Icons.Filled.Notifications,
+                                height = 46.dp,
+                                modifier = Modifier.weight(1f)
+                            )
+                            WenButton(
+                                stringResource(R.string.super_ring),
+                                onClick = { onSuperRing(pair.id) },
+                                style = WenButtonStyle.Accent,
+                                height = 46.dp,
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        SectionHeader(stringResource(R.string.add_title))
+        AddConnectionCard(
+            codeInput = state.codeInput,
+            onCodeChange = onCodeChange,
+            onRedeem = onRedeem,
+            onScan = onScan
+        )
+
+        BlockedSection(blocked, onDelete = onDelete, onBlock = onBlock, onUnblock = onUnblock)
+    }
+}
+
+@Composable
+private fun AddConnectionCard(
+    codeInput: String,
+    onCodeChange: (String) -> Unit,
+    onRedeem: () -> Unit,
+    onScan: () -> Unit
+) {
+    WenCard {
+        WenButton(
+            stringResource(R.string.scan_qr),
+            onClick = onScan,
+            leading = { QrGlyph(Modifier.size(20.dp)) },
+            modifier = Modifier.fillMaxWidth()
+        )
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .padding(vertical = Space.lg),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            HorizontalDivider(Modifier.weight(1f), color = WenColors.OutlineSoft)
+            Text(
+                stringResource(R.string.or_enter_pin),
+                style = MaterialTheme.typography.bodyMedium,
+                color = WenColors.TextFaint,
+                modifier = Modifier.padding(horizontal = Space.md)
+            )
+            HorizontalDivider(Modifier.weight(1f), color = WenColors.OutlineSoft)
+        }
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            OutlinedTextField(
+                value = codeInput,
+                onValueChange = onCodeChange,
+                placeholder = { Text(stringResource(R.string.pin_label), color = WenColors.TextFaint) },
+                singleLine = true,
+                textStyle = WenType.Code.copy(fontSize = 18.sp, letterSpacing = 3.sp, color = WenColors.Text),
+                keyboardOptions = KeyboardOptions(
+                    capitalization = KeyboardCapitalization.Characters,
+                    autoCorrectEnabled = false,
+                    imeAction = ImeAction.Done
+                ),
+                keyboardActions = KeyboardActions(onDone = { onRedeem() }),
+                shape = RoundedCornerShape(14.dp),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = WenColors.Lcd,
+                    unfocusedBorderColor = WenColors.Outline,
+                    cursorColor = WenColors.Lcd,
+                    focusedContainerColor = WenColors.Night,
+                    unfocusedContainerColor = WenColors.Night
+                ),
+                modifier = Modifier.weight(1f)
+            )
+            Spacer(Modifier.width(Space.sm))
+            WenButton(
+                stringResource(R.string.add),
+                onClick = onRedeem,
+                style = WenButtonStyle.Tonal,
+                icon = Icons.Filled.Add,
+                height = 56.dp
+            )
+        }
+    }
+}
+
+@Composable
+private fun LastRingLine(last: LastRing?) {
+    if (last == null) {
+        StatusDot(stringResource(R.string.never_rung), WenColors.TextFaint)
+        return
+    }
+    val context = LocalContext.current
+    val now = System.currentTimeMillis()
+    val (stateRes, color) = when {
+        last.status == "accepted" -> R.string.ring_status_accepted to WenColors.Lcd
+        last.status == "ignored" -> R.string.ring_status_ignored to WenColors.Danger
+        last.expiresAtMillis in 1..now -> R.string.ring_status_no_answer to WenColors.TextFaint
+        else -> R.string.ring_status_waiting to WenColors.Ember
+    }
+    val time = DateFormat.getTimeFormat(context).format(Date(last.sentAtMillis))
+    val kind = stringResource(if (last.superRing) R.string.kind_super else R.string.kind_ring)
+    StatusDot(stringResource(R.string.last_ring, kind, time, stringResource(stateRes)), color)
+}
+
+/* ---------- Connection cards (shared) ---------- */
+
+@Composable
+private fun ConnectionCard(
+    pair: PagerPair,
+    subtitle: @Composable () -> Unit,
+    onDelete: (String) -> Unit,
+    onBlock: (String) -> Unit,
+    onUnblock: (String) -> Unit,
+    actions: (@Composable () -> Unit)? = null
+) {
+    val unblockLabel = stringResource(R.string.unblock)
+    WenCard(background = if (pair.blocked) WenColors.Night else WenColors.Surface) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            TagChip(pair.tag, blocked = pair.blocked)
+            Spacer(Modifier.width(Space.md))
+            Column(Modifier.weight(1f)) {
+                Text(
+                    stringResource(R.string.connection_name, pair.tag),
+                    style = MaterialTheme.typography.titleMedium,
+                    color = if (pair.blocked) WenColors.TextMuted else WenColors.Text
+                )
+                Spacer(Modifier.height(2.dp))
+                if (pair.blocked) {
+                    StatusDot(
+                        stringResource(if (pair.blockedByMe) R.string.blocked_by_me else R.string.blocked_by_them),
+                        WenColors.Danger
+                    )
+                } else {
+                    subtitle()
+                }
+            }
+            val blockLabel = stringResource(R.string.block)
+            val deleteLabel = stringResource(R.string.delete)
+            OverflowMenu(
+                items = buildList {
+                    if (!pair.blocked) {
+                        add(MenuAction(blockLabel, Icons.Filled.Close, danger = true) { onBlock(pair.id) })
+                    }
+                    add(MenuAction(deleteLabel, Icons.Filled.Delete, danger = true) { onDelete(pair.id) })
+                }
+            )
+        }
+        if (!pair.blocked) actions?.invoke()
+        if (pair.blocked && pair.blockedByMe) {
+            Spacer(Modifier.height(Space.md))
+            WenButton(
+                unblockLabel,
+                onClick = { onUnblock(pair.id) },
+                style = WenButtonStyle.Tonal,
+                icon = Icons.Filled.Check,
+                height = 44.dp,
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
+    }
+}
+
+@Composable
+private fun BlockedSection(
+    blocked: List<PagerPair>,
+    onDelete: (String) -> Unit,
+    onBlock: (String) -> Unit,
+    onUnblock: (String) -> Unit
+) {
+    if (blocked.isEmpty()) return
+    SectionHeader(stringResource(R.string.section_blocked), count = blocked.size)
+    Column(verticalArrangement = Arrangement.spacedBy(Space.sm)) {
+        blocked.forEach { pair ->
+            ConnectionCard(pair = pair, subtitle = {}, onDelete = onDelete, onBlock = onBlock, onUnblock = onUnblock)
+        }
+    }
+}
+
+private class MenuAction(
+    val label: String,
+    val icon: ImageVector,
+    val danger: Boolean = false,
+    val onClick: () -> Unit
+)
+
+@Composable
+private fun OverflowMenu(items: List<MenuAction>) {
+    var open by remember { mutableStateOf(false) }
+    Box {
+        IconButton(onClick = { open = true }) {
+            Icon(Icons.Filled.MoreVert, contentDescription = stringResource(R.string.more_options), tint = WenColors.TextMuted)
+        }
+        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+            items.forEach { item ->
+                val color = if (item.danger) WenColors.Danger else WenColors.Text
+                DropdownMenuItem(
+                    text = { Text(item.label, color = color) },
+                    leadingIcon = { Icon(item.icon, contentDescription = null, tint = color) },
+                    onClick = {
+                        open = false
+                        item.onClick()
+                    }
+                )
+            }
+        }
+    }
 }
 
 @Composable
 private fun ConfirmDialog(pending: PendingConfirm, onConfirm: () -> Unit, onDismiss: () -> Unit) {
-    val who = pending.tag.ifBlank { "THIS CONNECTION" }
+    val who = if (pending.tag.isBlank()) {
+        stringResource(R.string.this_connection)
+    } else {
+        stringResource(R.string.connection_name, pending.tag)
+    }
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = LcdGreen,
-        titleContentColor = LcdDark,
-        textContentColor = LcdDark,
+        containerColor = WenColors.SurfaceHigh,
+        shape = RoundedCornerShape(24.dp),
         title = {
             Text(
-                if (pending.block) "BLOCK $who?" else "DELETE $who?",
-                fontFamily = Mono,
-                fontWeight = FontWeight.Bold
+                stringResource(if (pending.block) R.string.confirm_block_title else R.string.confirm_delete_title, who),
+                style = MaterialTheme.typography.titleLarge
             )
         },
         text = {
             Text(
-                if (pending.block) {
-                    "Rings on this connection stop. You can unblock it later."
-                } else {
-                    "This removes the connection. You'll need a new code to pair again."
-                },
-                fontFamily = Mono
+                stringResource(if (pending.block) R.string.confirm_block_body else R.string.confirm_delete_body),
+                style = MaterialTheme.typography.bodyMedium,
+                color = WenColors.TextMuted
             )
         },
         confirmButton = {
             TextButton(onClick = onConfirm) {
                 Text(
-                    if (pending.block) "BLOCK" else "DELETE",
-                    color = PagerRed,
-                    fontFamily = Mono,
-                    fontWeight = FontWeight.Bold
+                    stringResource(if (pending.block) R.string.block else R.string.delete),
+                    color = WenColors.Danger,
+                    style = MaterialTheme.typography.labelLarge
                 )
             }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("CANCEL", color = LcdDark, fontFamily = Mono, fontWeight = FontWeight.Bold)
+                Text(stringResource(R.string.cancel), color = WenColors.Text, style = MaterialTheme.typography.labelLarge)
             }
         }
     )
 }
 
-@Composable
-private fun PagerQrCode(payload: String, modifier: Modifier = Modifier) {
-    Box(
-        modifier = modifier
-            .size(178.dp)
-            .clip(RoundedCornerShape(4.dp))
-            .background(Color(0xFFB7C9AA))
-            .border(3.dp, LcdDark, RoundedCornerShape(4.dp))
-            .padding(8.dp),
-        contentAlignment = Alignment.Center
-    ) {
-        QrCodeImage(payload = payload, modifier = Modifier.size(154.dp))
-    }
-}
+/* ---------- Scanner ---------- */
 
 @Composable
-private fun ScannerPermissionScreen(onBack: () -> Unit, onScanned: (String) -> Unit) {
+private fun ScannerScreen(onBack: () -> Unit, onScanned: (String) -> Unit) {
     val context = LocalContext.current
     var hasPermission by remember {
         mutableStateOf(
-            ContextCompat.checkSelfPermission(
-                context,
-                Manifest.permission.CAMERA
-            ) == PackageManager.PERMISSION_GRANTED
+            ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
         )
     }
     var cameraStatus by remember { mutableStateOf<String?>(null) }
+    val deniedText = stringResource(R.string.camera_denied)
+    val errorText = stringResource(R.string.camera_error)
     val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         hasPermission = granted
-        cameraStatus = if (granted) null else "Camera permission denied"
+        cameraStatus = if (granted) null else deniedText
     }
 
-    LcdColumn(scrollable = false) {
-        TopBar(title = "SCAN QR", onBack = onBack)
-        Spacer(Modifier.height(16.dp))
+    WenScreen(title = stringResource(R.string.scan_title), onBack = onBack, scrollable = false) {
         if (hasPermission) {
-            QrScanner(
-                onResult = onScanned,
-                modifier = Modifier.fillMaxSize(),
-                onError = { cameraStatus = it }
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .weight(1f)
+                    .clip(MaterialTheme.shapes.large)
+                    .background(Color.Black),
+                contentAlignment = Alignment.Center
+            ) {
+                QrScanner(
+                    onResult = onScanned,
+                    modifier = Modifier.fillMaxSize(),
+                    onError = { cameraStatus = errorText }
+                )
+                ScanFrame(Modifier.size(240.dp))
+            }
+            Spacer(Modifier.height(Space.lg))
+            Text(
+                stringResource(R.string.scan_hint),
+                style = MaterialTheme.typography.bodyMedium,
+                color = WenColors.TextMuted,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth()
             )
-            StatusText(cameraStatus)
         } else {
-            LcdText("CAMERA ACCESS ONLY\nFOR QR SCANNING")
-            Spacer(Modifier.height(16.dp))
-            PagerActionButton("ALLOW CAMERA", onClick = { launcher.launch(Manifest.permission.CAMERA) })
-            StatusText(cameraStatus)
+            EmptyState(
+                title = stringResource(R.string.camera_title),
+                body = stringResource(R.string.camera_body),
+                lcdText = "QR"
+            ) {
+                WenButton(
+                    stringResource(R.string.allow_camera),
+                    onClick = { launcher.launch(Manifest.permission.CAMERA) }
+                )
+            }
+        }
+        cameraStatus?.let {
+            Spacer(Modifier.height(Space.sm))
+            Text(
+                it,
+                style = MaterialTheme.typography.bodyMedium,
+                color = WenColors.Danger,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth()
+            )
         }
     }
 }
 
+/** Four LCD-green corner brackets that frame the QR target area. */
 @Composable
-private fun TopBar(title: String, onBack: () -> Unit) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        TextButton(onClick = onBack) {
-            Text("BACK", color = LcdDark, fontFamily = Mono, fontWeight = FontWeight.Bold)
+private fun ScanFrame(modifier: Modifier = Modifier) {
+    Canvas(modifier) {
+        val len = size.minDimension * 0.18f
+        val stroke = 4.dp.toPx()
+        val w = size.width
+        val h = size.height
+        fun corner(x: Float, y: Float, dx: Float, dy: Float) {
+            drawLine(WenColors.Lcd, Offset(x, y), Offset(x + dx * len, y), stroke, StrokeCap.Round)
+            drawLine(WenColors.Lcd, Offset(x, y), Offset(x, y + dy * len), stroke, StrokeCap.Round)
         }
-        LcdTitle(title, modifier = Modifier.weight(1f), textAlign = TextAlign.Center)
-        Spacer(Modifier.size(58.dp))
+        corner(0f, 0f, 1f, 1f)
+        corner(w, 0f, -1f, 1f)
+        corner(0f, h, 1f, -1f)
+        corner(w, h, -1f, -1f)
     }
-}
-
-@Composable
-private fun LcdColumn(
-    modifier: Modifier = Modifier,
-    scrollable: Boolean = true,
-    verticalArrangement: Arrangement.Vertical = Arrangement.Top,
-    horizontalAlignment: Alignment.Horizontal = Alignment.Start,
-    content: @Composable ColumnScope.() -> Unit
-) {
-    val scroll = if (scrollable) Modifier.verticalScroll(rememberScrollState()) else Modifier
-    Column(
-        modifier = modifier.fillMaxSize().then(scroll),
-        verticalArrangement = verticalArrangement,
-        horizontalAlignment = horizontalAlignment,
-        content = content
-    )
-}
-
-@Composable
-private fun LcdTitle(
-    text: String,
-    modifier: Modifier = Modifier,
-    textAlign: TextAlign = TextAlign.Start
-) {
-    Text(
-        text,
-        modifier = modifier,
-        color = LcdDark,
-        fontFamily = Mono,
-        fontWeight = FontWeight.Bold,
-        fontSize = 28.sp,
-        lineHeight = 30.sp,
-        textAlign = textAlign
-    )
-}
-
-@Composable
-private fun LcdText(
-    text: String,
-    modifier: Modifier = Modifier,
-    textAlign: TextAlign = TextAlign.Start
-) {
-    Text(
-        text,
-        modifier = modifier,
-        color = LcdDark,
-        fontFamily = Mono,
-        fontSize = 18.sp,
-        lineHeight = 22.sp,
-        textAlign = textAlign
-    )
-}
-
-@Composable
-private fun LcdCard(blocked: Boolean = false, content: @Composable ColumnScope.() -> Unit) {
-    Card(
-        colors = CardDefaults.cardColors(containerColor = if (blocked) Color(0x33B6312C) else Color(0x339FBE9F)),
-        border = BorderStroke(if (blocked) 2.dp else 1.dp, if (blocked) PagerRed else LcdMuted),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
-        shape = RoundedCornerShape(2.dp),
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Column(Modifier.padding(10.dp), content = content)
-    }
-}
-
-@Composable
-private fun PagerActionButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
-    Button(
-        onClick = onClick,
-        modifier = modifier.height(50.dp),
-        shape = RoundedCornerShape(4.dp),
-        colors = ButtonDefaults.buttonColors(containerColor = LcdDark, contentColor = LcdGreen)
-    ) {
-        Text(text, fontFamily = Mono, fontWeight = FontWeight.Bold, fontSize = 16.sp, textAlign = TextAlign.Center)
-    }
-}
-
-@Composable
-private fun PagerSecondaryButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
-    OutlinedButton(
-        onClick = onClick,
-        modifier = modifier.height(50.dp),
-        shape = RoundedCornerShape(4.dp),
-        border = BorderStroke(2.dp, LcdDark),
-        colors = ButtonDefaults.outlinedButtonColors(contentColor = LcdDark)
-    ) {
-        Text(text, fontFamily = Mono, fontWeight = FontWeight.Bold, fontSize = 16.sp, textAlign = TextAlign.Center)
-    }
-}
-
-@Composable
-private fun PagerDangerButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
-    OutlinedButton(
-        onClick = onClick,
-        modifier = modifier.height(50.dp),
-        shape = RoundedCornerShape(4.dp),
-        border = BorderStroke(2.dp, PagerRed),
-        colors = ButtonDefaults.outlinedButtonColors(contentColor = PagerRed)
-    ) {
-        Text(text, fontFamily = Mono, fontWeight = FontWeight.Bold, fontSize = 16.sp, textAlign = TextAlign.Center)
-    }
-}
-
-@Composable
-private fun StatusText(status: String?) {
-    if (status == null) return
-    Spacer(Modifier.height(16.dp))
-    LcdText(status.uppercase(), modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
 }

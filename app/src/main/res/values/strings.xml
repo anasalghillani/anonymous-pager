@@ -1,3 +1,158 @@
+<?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Wen</string>
+
+    <!-- Home -->
+    <string name="home_headline">Ring someone without sharing your number.</string>
+    <string name="home_subline">No names. No numbers. Just a private ring.</string>
+    <string name="home_ring_title">Ring someone</string>
+    <string name="home_ring_body">Ring a saved connection or add one</string>
+    <string name="home_receive_title">Be ringed</string>
+    <string name="home_receive_body">Show a one-time code so someone can add you</string>
+    <string name="home_privacy">Anonymous pairing. Codes expire after 10 minutes.</string>
+    <string name="lcd_ready">READY</string>
+    <string name="lcd_links">LINKS %1$d</string>
+
+    <!-- Common -->
+    <string name="back">Back</string>
+    <string name="more_options">More options</string>
+    <string name="ring">Ring</string>
+    <string name="super_ring">Super ring</string>
+    <string name="block">Block</string>
+    <string name="unblock">Unblock</string>
+    <string name="delete">Delete</string>
+    <string name="cancel">Cancel</string>
+    <string name="done">Done</string>
+    <string name="add">Add</string>
+    <string name="connection_name">Connection %1$s</string>
+    <string name="this_connection">this connection</string>
+
+    <!-- Ring someone -->
+    <string name="ring_title">Ring someone</string>
+    <string name="section_connections">Your connections</string>
+    <string name="section_blocked">Blocked</string>
+    <string name="never_rung">No rings sent yet</string>
+    <string name="last_ring">%1$s · %2$s · %3$s</string>
+    <string name="kind_ring">Ring</string>
+    <string name="kind_super">Super ring</string>
+    <string name="ring_status_accepted">Accepted</string>
+    <string name="ring_status_ignored">Ignored</string>
+    <string name="ring_status_no_answer">No answer</string>
+    <string name="ring_status_waiting">Waiting…</string>
+    <string name="blocked_by_me">You blocked this connection</string>
+    <string name="blocked_by_them">This connection is blocked</string>
+    <string name="empty_connections_title">No connections yet</string>
+    <string name="empty_connections_body">Ask a friend to open “Be ringed” and show you their code. Scan it below to connect.</string>
+    <string name="add_title">Add a connection</string>
+    <string name="scan_qr">Scan QR code</string>
+    <string name="or_enter_pin">or enter the PIN</string>
+    <string name="pin_label">PIN</string>
+
+    <!-- Be ringed -->
+    <string name="be_ringed_title">Be ringed</string>
+    <string name="code_hint">Let a friend scan this, or read them the PIN.</string>
+    <string name="code_expires_in">Expires in %1$s</string>
+    <string name="code_expired">Code expired</string>
+    <string name="new_code">New code</string>
+    <string name="get_code">Get a code</string>
+    <string name="no_code_title">No code right now</string>
+    <string name="no_code_body">Make a one-time code that a friend can scan.</string>
+    <string name="connected_title">Connected!</string>
+    <string name="connected_body">%1$s can ring you now, and you can ring them back.</string>
+    <string name="how_title">How it works</string>
+    <string name="how_1">Show this code to a friend.</string>
+    <string name="how_2">They scan it in “Ring someone”.</string>
+    <string name="how_3">You can ring each other. No numbers shared.</string>
+    <string name="section_senders">Who can ring you</string>
+    <string name="empty_senders">Nobody yet. People who scan your code show up here.</string>
+    <string name="can_ring_you">Can ring you</string>
+    <string name="qr_description">Pairing QR code</string>
+
+    <!-- Scanner -->
+    <string name="scan_title">Scan QR</string>
+    <string name="scan_hint">Point your camera at the QR code on your friend\'s phone.</string>
+    <string name="camera_title">Camera needed</string>
+    <string name="camera_body">Wen only uses the camera to scan pairing codes. Nothing is recorded.</string>
+    <string name="allow_camera">Allow camera</string>
+    <string name="camera_denied">Camera permission denied</string>
+    <string name="camera_error">Could not start camera</string>
+
+    <!-- Incoming ring -->
+    <string name="incoming_ring">Incoming ring</string>
+    <string name="incoming_super">Super ring!</string>
+    <string name="incoming_from">%1$s is ringing you</string>
+    <string name="rings_count">Rings: %1$d</string>
+    <string name="more_waiting">Others waiting: %1$d</string>
+    <string name="accept">Accept</string>
+    <string name="ignore">Ignore</string>
+
+    <!-- Confirm -->
+    <string name="confirm_block_title">Block %1$s?</string>
+    <string name="confirm_block_body">Rings on this connection stop. You can unblock it later.</string>
+    <string name="confirm_delete_title">Delete %1$s?</string>
+    <string name="confirm_delete_body">This removes the connection. You\'ll need a new code to pair again.</string>
+
+    <!-- Notifications banner -->
+    <string name="notifications_off">Notifications are off. You won\'t hear rings when Wen is closed.</string>
+    <string name="later">Later</string>
+    <string name="enable">Enable</string>
+
+    <!-- Status messages -->
+    <string name="sending_ring">Sending ring…</string>
+    <string name="sending_super">Sending super ring…</string>
+    <string name="ring_sent">Ring sent</string>
+    <string name="super_sent">Super ring sent</string>
+    <string name="connection_deleted">Connection deleted</string>
+    <string name="connection_blocked">Connection blocked</string>
+    <string name="connection_unblocked">Connection unblocked</string>
+    <string name="ring_accepted">Ring accepted</string>
+    <string name="ring_ignored">Ring ignored</string>
+    <string name="enter_pin_or_scan">Enter a PIN or scan a QR code</string>
+    <string name="connection_saved">Connection saved</string>
+    <string name="err_start">Could not start private session</string>
+    <string name="err_create_code">Could not create a code</string>
+    <string name="err_save_connection">Could not save connection</string>
+    <string name="err_load_connections">Could not load connections</string>
+    <string name="err_load_incoming">Could not load incoming connections</string>
+    <string name="err_load_rings">Could not load rings</string>
+    <string name="err_auth_disabled">Anonymous sign-in is not enabled in Firebase Auth.</string>
+    <string name="err_offline">No connection. Check your internet and try again.</string>
+    <string name="err_send_ring">Could not send ring</string>
+    <string name="err_delete">Could not delete connection</string>
+    <string name="err_block">Could not block connection</string>
+    <string name="err_unblock">Could not unblock connection</string>
+    <string name="err_respond">Could not respond</string>
+    <string name="err_generic">Something went wrong</string>
+    <string name="err_firebase_missing">Firebase setup is missing. Add app/google-services.json from your Firebase project, then rebuild and reinstall.</string>
+
+    <!-- System notifications -->
+    <string name="channel_rings">Rings</string>
+    <string name="channel_rings_desc">Private pager alerts</string>
+    <string name="channel_super">Super rings</string>
+    <string name="channel_super_desc">Urgent pager alerts</string>
+    <string name="notif_ring_title">Someone needs you</string>
+    <string name="notif_super_title">Super ring!</string>
+    <string name="notif_ring_text">Private ring received</string>
+    <string name="notif_response_text">Private response received</string>
+    <string name="notif_answer_failed_title">Answer not sent</string>
+    <string name="notif_answer_failed_text">Open Wen to answer the ring</string>
+
+    <!-- Server errors (match functions/src/index.ts messages) -->
+    <string name="srv_signin_required">Anonymous sign-in is required.</string>
+    <string name="srv_code_unavailable">Could not create a temporary code.</string>
+    <string name="srv_bad_code">Enter a valid six digit code or QR payload.</string>
+    <string name="srv_code_not_found">Code not found.</string>
+    <string name="srv_code_invalid">Code is invalid.</string>
+    <string name="srv_own_code">You cannot pair with your own code.</string>
+    <string name="srv_code_expired">Code has expired.</string>
+    <string name="srv_cannot_connect">You can\'t connect with this person.</string>
+    <string name="srv_connection_not_found">Connection not found.</string>
+    <string name="srv_cannot_ring">Connection cannot be ringed.</string>
+    <string name="srv_blocked">This connection is blocked.</string>
+    <string name="srv_too_many_rings">Too many rings. Try again later.</string>
+    <string name="srv_ring_not_found">Ring receipt not found.</string>
+    <string name="srv_only_receiver">Only the receiver can respond.</string>
+    <string name="srv_cannot_delete">Connection cannot be deleted.</string>
+    <string name="srv_cannot_block">Connection cannot be blocked.</string>
+    <string name="srv_only_blocker">Only the person who blocked can unblock.</string>
 </resources>
