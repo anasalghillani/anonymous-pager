@@ -6,7 +6,7 @@
     <string name="home_headline">Ring someone without sharing your number.</string>
     <string name="home_subline">No names. No numbers. Just a private ring.</string>
     <string name="home_ring_title">Ring someone</string>
-    <string name="home_ring_body">Ring a saved connection or add a new one</string>
+    <string name="home_ring_body">Ring a saved connection or add one</string>
     <string name="home_receive_title">Be ringed</string>
     <string name="home_receive_body">Show a one-time code so someone can add you</string>
     <string name="home_privacy">Anonymous pairing. Codes expire after 10 minutes.</string>

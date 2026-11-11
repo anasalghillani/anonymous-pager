@@ -42,7 +42,7 @@
     <string name="blocked_by_me">أنت حظرت هذا الاتصال</string>
     <string name="blocked_by_them">هذا الاتصال محظور</string>
     <string name="empty_connections_title">لا توجد اتصالات بعد</string>
-    <string name="empty_connections_body">اطلب من صديقك فتح «استقبل رنّة» وعرض رمزه، ثم امسحه بالأسفل للاتصال.</string>
+    <string name="empty_connections_body">اطلب من صديقك عرض رمزه من «استقبل رنّة»، ثم امسحه بالأسفل.</string>
     <string name="add_title">أضف اتصالًا</string>
     <string name="scan_qr">امسح رمز QR</string>
     <string name="or_enter_pin">أو أدخل الرمز يدويًا</string>
