@@ -1,101 +1,93 @@
-# 📟 Wen · وين
+<p align="center">
+  <img src="branding/icon-512.png" width="128" alt="Wen app icon">
+</p>
 
-> **Privacy-First Peer Alerting System**: No names, no phone numbers, no contact books, no identity leakage.
+<h1 align="center">Wen · وين</h1>
 
----
-
-![Anonymous Pager Mobile Preview](assets/hero-preview.jpg)
-
----
-
-## 🔒 What is Anonymous Pager?
-
-**Wen** (وين, formerly Anonymous Pager) is a native Android application built with **Kotlin** and **Jetpack Compose**. It allows two individuals to establish a direct, anonymous signaling channel via temporary PINs or QR codes — enabling one user to "ring" or alert the other without exchanging any personal identifiable information (PII).
-
-Think of it as a **digital physical pager**: secure, instant, zero-metadata, and strictly peer-scoped.
+<p align="center">
+  An anonymous pager for Android. Pair two phones with a PIN or QR code, then "ring" each other.<br>
+  No accounts, no phone numbers, no contacts.
+</p>
 
 ---
 
-## 🛠️ Key Features
+## What it does
 
-* 🚫 **Zero PII Exposure**: No account registration, phone numbers, or contact permission required.
-* 📲 **QR & PIN Pairing**: Generate short-lived QR codes or PINs to pair devices in seconds.
-* 🔔 **Super Ring Mode**: High-priority alert mechanism utilizing the Android alarm audio stream, bypasses standard media silencers with custom vibration sequences for emergency signals.
-* 📟 **Retro LCD Aesthetic**: Custom Jetpack Compose UI styled after classic physical pagers with dark cyber-teal and amber neon accents.
-* 🛡️ **Built-in Blocking**: Instant peer blocking and unblocking capabilities with client-side status labels.
+- **Anonymous pairing**: one phone shows a short-lived PIN / QR code (valid 10 minutes), the other enters or scans it.
+- **Ring**: send a ring to a paired phone. It plays on the alarm audio stream with vibration, and the receiver can accept or decline.
+- **No identity**: devices sign in with Firebase Anonymous Auth. Nobody sees a name, number or contact list.
+- **Block / unblock / delete** any connection.
+- **Rate limit**: max 3 rings per connection every 5 minutes (enforced server-side).
+- **Retro LCD look**: Jetpack Compose UI styled like a classic pager.
 
----
-
-## 🏗️ Project Architecture
-
-The codebase is organized into client and backend modules:
+## How it works
 
 ```text
-anonymous-pager/
-├── app/                  # Native Android app (Kotlin + Jetpack Compose)
-│   ├── src/main/java/    # UI Composables, ViewModels, & Firestore Listeners
-│   └── res/              # Vector assets, themes, & notification channels
-├── functions/            # Firebase Cloud Functions (Node.js / TypeScript)
-│   └── src/              # Secure pair verification, rate-limiting & callable triggers
-├── firestore.rules       # Granular database security & document access policies
-└── firebase.json         # Firebase Emulator Suite setup & deployment config
+Android app ──(callable functions)──▶ Cloud Functions ──▶ Firestore
+     ▲                                       │
+     └──────────── FCM push (ring) ◀─────────┘
 ```
 
----
+- Every write (create code, pair, ring, block…) goes through **Cloud Functions**, keyed by the anonymous auth uid.
+- **Firestore rules** only let a device read its own connections and rings; clients can't write directly.
+- Rings arrive as **FCM** (Firebase Cloud Messaging, Google's push service) notifications, so they work when the app is closed.
 
-## ⚙️ Tech Stack & Technologies
+## Project layout
 
-* **Language**: Kotlin 2.x
-* **UI Toolkit**: Jetpack Compose + Material 3
-* **Backend**: Firebase Firestore (Real-time listener architecture) + Cloud Functions
-* **Camera / QR**: CameraX + ML Kit Barcode Scanning
-* **Notifications**: Firebase Cloud Messaging (FCM) + Android Notification Manager
-
----
-
-## 🚀 Quickstart & Local Development
-
-### 1. Requirements
-* **Android Studio**: Jellyfish / Koala or newer
-* **JDK**: 17 or higher
-* **Firebase Project**: Spark (free) or Blaze plan
-
-### 2. Firebase setup
-1. In the Firebase console, add an Android app with package name **`com.anas.wen`** and download its `google-services.json` into `app/`.
-2. Enable **Authentication → Sign-in method → Anonymous**.
-3. Deploy functions and rules (Blaze plan required): `firebase deploy --only functions,firestore`.
-
-### 3. Running the Android Client
-1. Clone this repository:
-   ```bash
-   git clone https://github.com/anasalghillani/anonymous-pager.git
-   ```
-2. Open the project root in **Android Studio**.
-3. Let Gradle sync dependencies.
-4. Run on an Android emulator or physical device (Android 8.0+ / API 26+).
-
-### 4. Running Firebase Emulator Suite (Functions & Database)
-```bash
-cd functions
-npm install
-npm run build
-firebase emulators:start
+```text
+app/            Android app (Kotlin, Jetpack Compose, CameraX + ML Kit for QR)
+functions/      Firebase Cloud Functions (TypeScript, Node 22)
+firestore.rules Firestore security rules
+firebase.json   Firebase deploy + emulator config
+branding/       App icon sources (SVG) and previews
 ```
 
----
+## Setup
 
-## 🔐 Deployment & Cloud Functions
+### Requirements
 
-To deploy updated Cloud Functions and Firestore rules to Firebase:
+- Android Studio (recent) with JDK 17
+- Node.js 22 and the Firebase CLI: `npm i -g firebase-tools`
+- A Firebase project on the **Blaze** (pay-as-you-go) plan. Cloud Functions need it; a hobby-level usage normally stays inside the free tier.
+
+### 1. Firebase project
+
+1. Create a project in the [Firebase console](https://console.firebase.google.com).
+2. **Authentication → Sign-in method →** enable **Anonymous**.
+3. **Firestore Database →** create a database.
+4. **Project settings → Add app → Android** with package name `com.anas.wen` (or your own, see below). Download `google-services.json` into `app/`.
+   - This file is git-ignored on purpose. Don't commit it.
+
+### 2. Deploy the backend
 
 ```bash
+firebase login
+firebase use --add            # pick your project
+cd functions && npm install && cd ..
 firebase deploy --only functions,firestore
 ```
 
-> **Note**: The app signs in with Firebase Anonymous Auth and sends every write through Cloud Functions; Firestore rules only let a device read its own connections and rings. This requires the **Blaze plan**.
+Functions are deployed to `us-central1` (set in `functions/src/index.ts`).
 
----
+### 3. Run the app
 
-<p align="center">
-  <i>Open source privacy experiment — Built with Kotlin & Jetpack Compose.</i>
-</p>
+1. Open the repo root in Android Studio and let Gradle sync.
+2. Run on a device or emulator with Android 8.0+ (API 26). Use two devices to test pairing and ringing.
+
+Or from the command line: `./gradlew assembleDebug`
+
+### Using your own package name
+
+Change `applicationId` in `app/build.gradle.kts`, and register that same name as the Android app in Firebase before downloading `google-services.json`.
+
+## Development
+
+```bash
+cd functions
+npm test                      # unit tests (vitest)
+npm run serve                 # build + local emulators (auth, functions, firestore)
+```
+
+## License
+
+[MIT](LICENSE)
