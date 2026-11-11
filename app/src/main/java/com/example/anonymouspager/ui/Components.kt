@@ -47,6 +47,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.AbsoluteAlignment
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -82,7 +83,7 @@ fun PagerDevice(
     lcdContent: @Composable BoxScope.() -> Unit
 ) {
     val s = width / 400f
-    Box(modifier.width(width).height(290 * s)) {
+    Box(modifier.width(width).height(290 * s), contentAlignment = AbsoluteAlignment.TopLeft) {
         // Belt clip on the top edge (kept on the right in both directions, like the logo).
         Box(
             Modifier
